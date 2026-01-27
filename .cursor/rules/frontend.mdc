@@ -1,3 +1,58 @@
 ---
-alwaysApply: true
+alwaysApply: false
 ---
+## Purpose
+The `frontend` module outlines the user-facing interfaces and developer tooling required to interact with MCP workflows. This includes CLI agents, prompt test runners, and Phase 2 dashboard concepts.
+
+---
+
+## Key Responsibilities
+- CLI utilities for triggering MCP flows
+- HITL token injection tools
+- Prompt debugging and regression tools
+- LangGraph test visualizer (Phase 2)
+- MVP developer support, not customer UI
+
+---
+
+## Technologies
+- Node.js (LTS)
+- Typescript
+- Jest (for testing)
+- zx / Commander (CLI framework)
+- REST or JSON-RPC client bindings for MCP
+
+---
+
+## Directory Layout
+```
+frontend/
+├── cli/                  # CLI tools: `tenure run`, `tenure hitl`, etc.
+├── prompts/              # Static prompt libraries used in agents
+├── langgraph/            # Flow runners, visualizers (future)
+├── tests/                # Prompt tests, CLI tests
+├── manifest/             # HITL token logs, audit trails
+└── .env                  # Frontend-specific bindings
+```
+
+---
+
+## CLI Contracts
+- `tenure run [flow] [params]` – triggers LangGraph flow
+- `tenure hitl approve [token]` – injects HITL token into gateway
+- `tenure prompt test` – runs regression tests on prompt outputs
+
+---
+
+## Constraints
+- No web UI in MVP
+- LangGraph visual tooling deferred to Phase 2
+- HITL tokens passed manually or via CLI flags
+
+---
+
+## Developer Experience Goals
+- Zero-config CLI tool for ops/dev
+- Reproducible agent runs
+- Versioned prompt debugging framework
+- Eventual dashboard surface for approvals and traces

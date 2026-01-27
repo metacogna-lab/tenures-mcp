@@ -1,3 +1,27 @@
 ---
 alwaysApply: true
 ---
+.
+├── AGENTS.md
+├── backend
+│   ├── db
+│   ├── graph
+│   ├── integrations
+│   ├── llm
+│   ├── main.py
+│   ├── models
+│   ├── src
+│   └── tools
+├── CLAUDE.md
+├── frontend
+│   └── src
+├── mcp
+├── README.md
+├── shared
+│   └── contracts
+└── tasks
+    ├── architecture.md
+    ├── bridge.md
+    ├── mcp-tasks.md
+    ├── prd.md
+    └── tasks.md

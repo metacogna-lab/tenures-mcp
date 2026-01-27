@@ -1,0 +1,185 @@
+---
+alwaysApply: true
+title: MCP
+scope: mcp
+status: draft
+owner: Tenure Platform Team
+---
+
+# Overview
+This document governs the structure, control, and policy of all MCP agent development for the Tenure platform. It defines standards and enforced boundaries for compliant, secure, and testable MCP Server implementations.
+
+## Architecture Scope
+- **MCP Server**: Policy-enforced, FastAPI + LangGraph + Pydantic-based orchestrator
+- **Tooling Contract**: Versioned tools and resources, scoped to single use cases
+- **LangGraph**: Orchestration engine running in-memory workflows
+- **Storage**: SQLite-backed persistent store for resource history and feedback metadata
+- **Transport**: SSE-first, JSON-RPC optional, CLI-invokable tool execution
+
+## Folder Layout
+```bash
+/mcp
+  /agents
+  /langgraphs
+  /schemas
+  /tools
+  /resources
+  /middleware
+  /storage
+```
+
+## Tooling & Resources
+- Tools must:
+  - Be defined with Pydantic schemas
+  - Be versioned
+  - Be stateless unless explicitly required
+  - Return typed outputs
+- Resources must:
+  - Return structured summaries (dict or str)
+  - Strip or mask all PII
+  - Support Resource URI contract: `vault://properties/{id}/summary`
+
+## LangGraph
+- Workflow definitions must:
+  - Be colocated in `/langgraphs`
+  - Be schema-typed at entry/exit
+  - Maintain an opinionated naming standard (`vendor_report_v0`)
+  - Include path tests
+
+## Storage
+- SQLite (via `sqlite3`) used for:
+  - Persistence of tool execution logs
+  - LangGraph state snapshotting (Phase 2)
+  - Version tracking of agents/tools
+
+## Policy Enforcement (via MCP Gateway)
+- Each request to tool or LangGraph must:
+  - Include user_id, tenant_id, and auth_context
+  - Pass an RBAC policy check
+  - Be auditable (log + trace ID)
+- Critical or HITL tools must:
+  - Require explicit manual confirmation token
+  - Log request as pending until confirmed
+
+## Observability
+- LangSmith & OpenTelemetry integrated for:
+  - Request trace logging
+  - Tool call durations and failure rates
+  - Policy bypass/failure tracking
+
+## CLI Contract
+```bash
+python mcp/cli.py run-tool tool_name --input input.json
+python mcp/cli.py run-graph graph_name --input state.json
+```
+
+## Deployment
+- All MCP Server deployments must:
+  - Be containerized (Docker)
+  - Load secrets via `.env` only
+  - Use Railway as CI/CD target
+
+## Versioning
+- All MCP tools, resources, and LangGraphs must follow semver-style version tagging
+- `v0` series allowed only for development agents; production agents start at `v1.0`
+
+## Out of Scope
+- Production VaultRE/Ailo API calls (stubbed for MVP)
+- Multi-tenant mode (scaffolded, but disabled)
+- Full HITL Panel UI (Phase 2)
+
+## Authors
+- Tenure Engineering Core
+- LangGraph Standards Team
+---
+title: MCP
+scope: mcp
+status: draft
+owner: Tenure Platform Team
+---
+
+# Overview
+This document governs the structure, control, and policy of all MCP agent development for the Tenure platform. It defines standards and enforced boundaries for compliant, secure, and testable MCP Server implementations.
+
+## Architecture Scope
+- **MCP Server**: Policy-enforced, FastAPI + LangGraph + Pydantic-based orchestrator
+- **Tooling Contract**: Versioned tools and resources, scoped to single use cases
+- **LangGraph**: Orchestration engine running in-memory workflows
+- **Storage**: SQLite-backed persistent store for resource history and feedback metadata
+- **Transport**: SSE-first, JSON-RPC optional, CLI-invokable tool execution
+
+## Folder Layout
+```bash
+/mcp
+  /agents
+  /langgraphs
+  /schemas
+  /tools
+  /resources
+  /middleware
+  /storage
+```
+
+## Tooling & Resources
+- Tools must:
+  - Be defined with Pydantic schemas
+  - Be versioned
+  - Be stateless unless explicitly required
+  - Return typed outputs
+- Resources must:
+  - Return structured summaries (dict or str)
+  - Strip or mask all PII
+  - Support Resource URI contract: `vault://properties/{id}/summary`
+
+## LangGraph
+- Workflow definitions must:
+  - Be colocated in `/langgraphs`
+  - Be schema-typed at entry/exit
+  - Maintain an opinionated naming standard (`vendor_report_v0`)
+  - Include path tests
+
+## Storage
+- SQLite (via `sqlite3`) used for:
+  - Persistence of tool execution logs
+  - LangGraph state snapshotting (Phase 2)
+  - Version tracking of agents/tools
+
+## Policy Enforcement (via MCP Gateway)
+- Each request to tool or LangGraph must:
+  - Include user_id, tenant_id, and auth_context
+  - Pass an RBAC policy check
+  - Be auditable (log + trace ID)
+- Critical or HITL tools must:
+  - Require explicit manual confirmation token
+  - Log request as pending until confirmed
+
+## Observability
+- LangSmith & OpenTelemetry integrated for:
+  - Request trace logging
+  - Tool call durations and failure rates
+  - Policy bypass/failure tracking
+
+## CLI Contract
+```bash
+python mcp/cli.py run-tool tool_name --input input.json
+python mcp/cli.py run-graph graph_name --input state.json
+```
+
+## Deployment
+- All MCP Server deployments must:
+  - Be containerized (Docker)
+  - Load secrets via `.env` only
+  - Use Railway as CI/CD target
+
+## Versioning
+- All MCP tools, resources, and LangGraphs must follow semver-style version tagging
+- `v0` series allowed only for development agents; production agents start at `v1.0`
+
+## Out of Scope
+- Production VaultRE/Ailo API calls (stubbed for MVP)
+- Multi-tenant mode (scaffolded, but disabled)
+- Full HITL Panel UI (Phase 2)
+
+## Authors
+- Tenure Engineering Core
+- LangGraph Standards Team
