@@ -3,6 +3,9 @@ import { Card } from './Card';
 import { Badge } from './Badge';
 import { Button } from './Button';
 import { JsonDisplay } from './JsonDisplay';
+import { VendorReportView } from './reports/VendorReportView';
+import { ArrearsReportView } from './reports/ArrearsReportView';
+import { ComplianceReportView } from './reports/ComplianceReportView';
 
 interface WorkflowNode {
   id: string;
@@ -530,6 +533,8 @@ export function WorkflowGraph({ onWorkflowComplete }: WorkflowGraphProps) {
   const [selectedNode, setSelectedNode] = useState<WorkflowNode | null>(null);
   const [finalResult, setFinalResult] = useState<Record<string, unknown> | null>(null);
   const [totalDuration, setTotalDuration] = useState<number>(0);
+  const [viewMode, setViewMode] = useState<'report' | 'json' | 'graph'>('report');
+  const [allNodeOutputs, setAllNodeOutputs] = useState<Record<string, Record<string, unknown>>>({});
 
   // Initialize nodes when workflow changes
   useEffect(() => {
@@ -538,11 +543,14 @@ export function WorkflowGraph({ onWorkflowComplete }: WorkflowGraphProps) {
     setFinalResult(null);
     setTotalDuration(0);
     setInputValue(selectedWorkflow.inputPlaceholder);
+    setAllNodeOutputs({});
+    setViewMode('report');
   }, [selectedWorkflow]);
 
   const handleNodeUpdate = useCallback((nodeId: string, update: Partial<WorkflowNode>) => {
     setNodes(prev => prev.map(n => n.id === nodeId ? { ...n, ...update } : n));
     if (update.status === 'completed' && update.output) {
+      setAllNodeOutputs(prev => ({ ...prev, [nodeId]: update.output as Record<string, unknown> }));
       setNodes(prev => {
         const node = prev.find(n => n.id === nodeId);
         if (node) setSelectedNode({ ...node, ...update });
@@ -556,6 +564,7 @@ export function WorkflowGraph({ onWorkflowComplete }: WorkflowGraphProps) {
     setFinalResult(null);
     setSelectedNode(null);
     setTotalDuration(0);
+    setAllNodeOutputs({});
     
     // Reset all nodes
     setNodes(selectedWorkflow.nodes.map(n => ({ ...n, status: 'pending' as const, output: undefined, duration: undefined })));
@@ -571,6 +580,41 @@ export function WorkflowGraph({ onWorkflowComplete }: WorkflowGraphProps) {
       console.error('Workflow error:', error);
     } finally {
       setIsRunning(false);
+    }
+  };
+
+  // Render report view based on workflow type
+  const renderReportView = () => {
+    if (!finalResult) return null;
+
+    switch (selectedWorkflow.id) {
+      case 'weekly_vendor_report':
+        return (
+          <VendorReportView
+            reportData={finalResult as unknown as Parameters<typeof VendorReportView>[0]['reportData']}
+            propertyData={allNodeOutputs['fetch_property'] as unknown as Parameters<typeof VendorReportView>[0]['propertyData']}
+            feedbackData={allNodeOutputs['analyze_feedback'] as unknown as Parameters<typeof VendorReportView>[0]['feedbackData']}
+          />
+        );
+      case 'arrears_detection':
+        return (
+          <ArrearsReportView
+            ledgerData={allNodeOutputs['fetch_ledger'] as unknown as Parameters<typeof ArrearsReportView>[0]['ledgerData']}
+            breachData={allNodeOutputs['calculate_breach'] as unknown as Parameters<typeof ArrearsReportView>[0]['breachData']}
+            riskData={finalResult as unknown as Parameters<typeof ArrearsReportView>[0]['riskData']}
+          />
+        );
+      case 'compliance_audit':
+        return (
+          <ComplianceReportView
+            documentData={allNodeOutputs['fetch_documents'] as unknown as Parameters<typeof ComplianceReportView>[0]['documentData']}
+            ocrData={allNodeOutputs['ocr_documents'] as unknown as Parameters<typeof ComplianceReportView>[0]['ocrData']}
+            expiryData={allNodeOutputs['extract_dates'] as unknown as Parameters<typeof ComplianceReportView>[0]['expiryData']}
+            auditData={finalResult as unknown as Parameters<typeof ComplianceReportView>[0]['auditData']}
+          />
+        );
+      default:
+        return <JsonDisplay data={finalResult} title="Final Output" />;
     }
   };
 
@@ -793,26 +837,131 @@ export function WorkflowGraph({ onWorkflowComplete }: WorkflowGraphProps) {
         </div>
       </div>
 
-      {/* Final Result Summary */}
+      {/* Final Result with View Mode Toggle */}
       {finalResult && (
-        <Card variant="elevated" className="border-success/30 animate-fade-in-up">
-          <div className="flex items-start gap-4">
-            <div className="w-12 h-12 rounded-xl bg-success/20 flex items-center justify-center flex-shrink-0">
-              <svg className="w-6 h-6 text-success" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-              </svg>
-            </div>
-            <div className="flex-1">
-              <h3 className="text-lg font-semibold text-success">Workflow Completed Successfully</h3>
-              <p className="text-sm text-text-secondary mt-1">
-                {selectedWorkflow.name} executed {nodes.length} steps in {totalDuration}ms
-              </p>
-              <div className="mt-4">
-                <JsonDisplay data={finalResult} title="Final Output" collapsible maxHeight="300px" />
+        <div className="space-y-4 animate-fade-in-up">
+          {/* Success Banner & View Toggle */}
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-4">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-success/20 flex items-center justify-center">
+                  <svg className="w-5 h-5 text-success" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                </div>
+                <div>
+                  <h3 className="font-semibold text-success">Workflow Complete</h3>
+                  <p className="text-sm text-text-muted">
+                    {nodes.length} steps in {totalDuration}ms
+                  </p>
+                </div>
               </div>
             </div>
+            
+            {/* View Mode Toggle */}
+            <div className="flex items-center gap-2 p-1 bg-bg-secondary rounded-lg">
+              <button
+                onClick={() => setViewMode('report')}
+                className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-sm font-medium transition-all ${
+                  viewMode === 'report'
+                    ? 'bg-accent-primary text-white'
+                    : 'text-text-secondary hover:text-text-primary'
+                }`}
+              >
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                </svg>
+                Report
+              </button>
+              <button
+                onClick={() => setViewMode('graph')}
+                className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-sm font-medium transition-all ${
+                  viewMode === 'graph'
+                    ? 'bg-accent-primary text-white'
+                    : 'text-text-secondary hover:text-text-primary'
+                }`}
+              >
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 5a1 1 0 011-1h14a1 1 0 011 1v2a1 1 0 01-1 1H5a1 1 0 01-1-1V5zM4 13a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1H5a1 1 0 01-1-1v-6zM16 13a1 1 0 011-1h2a1 1 0 011 1v6a1 1 0 01-1 1h-2a1 1 0 01-1-1v-6z" />
+                </svg>
+                Steps
+              </button>
+              <button
+                onClick={() => setViewMode('json')}
+                className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-sm font-medium transition-all ${
+                  viewMode === 'json'
+                    ? 'bg-accent-primary text-white'
+                    : 'text-text-secondary hover:text-text-primary'
+                }`}
+              >
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4" />
+                </svg>
+                JSON
+              </button>
+            </div>
           </div>
-        </Card>
+
+          {/* Report View */}
+          {viewMode === 'report' && (
+            <div className="animate-fade-in">
+              {renderReportView()}
+            </div>
+          )}
+
+          {/* Graph/Steps View */}
+          {viewMode === 'graph' && (
+            <div className="grid grid-cols-12 gap-6 animate-fade-in">
+              {/* Steps List */}
+              <div className="col-span-4 space-y-3">
+                <h4 className="text-sm font-semibold text-text-muted uppercase tracking-wider">
+                  Workflow Steps
+                </h4>
+                {nodes.map((node) => (
+                  <Card
+                    key={node.id}
+                    onClick={() => node.output && setSelectedNode(node)}
+                    selected={selectedNode?.id === node.id}
+                    padding="md"
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="w-8 h-8 rounded-lg bg-success/20 flex items-center justify-center text-lg">
+                        {node.icon}
+                      </div>
+                      <div className="flex-1">
+                        <div className="font-medium text-text-primary">{node.name}</div>
+                        <div className="text-xs text-text-muted">{node.duration}ms</div>
+                      </div>
+                      <svg className="w-4 h-4 text-success" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                      </svg>
+                    </div>
+                  </Card>
+                ))}
+              </div>
+
+              {/* Step Output */}
+              <div className="col-span-8">
+                {selectedNode?.output ? (
+                  <JsonDisplay data={selectedNode.output} title={`Output: ${selectedNode.name}`} maxHeight="500px" />
+                ) : (
+                  <Card variant="outlined" className="h-full flex items-center justify-center">
+                    <div className="text-center py-16">
+                      <p className="text-text-muted">Select a step to view its output</p>
+                    </div>
+                  </Card>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* JSON View */}
+          {viewMode === 'json' && (
+            <div className="animate-fade-in">
+              <JsonDisplay data={finalResult} title="Complete Workflow Output" maxHeight="600px" />
+            </div>
+          )}
+        </div>
       )}
     </div>
   );
