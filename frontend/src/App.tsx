@@ -6,6 +6,7 @@ import { InputField } from './components/InputField';
 import { JsonDisplay } from './components/JsonDisplay';
 import { StatusIndicator } from './components/StatusIndicator';
 import { TestingGuide, type Scenario } from './components/TestingGuide';
+import { WorkflowGraph } from './components/WorkflowGraph';
 import { useMcpApi } from './hooks/useMcpApi';
 import type { Tool, Workflow, Resource } from './types';
 
@@ -111,7 +112,7 @@ const RESOURCES: Resource[] = [
   },
 ];
 
-type TabType = 'tools' | 'workflows' | 'resources' | 'guide';
+type TabType = 'tools' | 'workflows' | 'resources' | 'guide' | 'langgraph';
 
 export default function App() {
   const [activeTab, setActiveTab] = useState<TabType>('guide');
@@ -211,6 +212,11 @@ export default function App() {
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" />
       </svg>
     )},
+    { id: 'langgraph' as const, label: 'LangGraph Demo', icon: (
+      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+      </svg>
+    ), highlight: true },
     { id: 'tools' as const, label: 'Tools', icon: (
       <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
@@ -313,15 +319,22 @@ export default function App() {
               onClick={() => setActiveTab(tab.id)}
               className={`
                 flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium 
-                transition-all duration-150
+                transition-all duration-150 relative
                 ${activeTab === tab.id
-                  ? 'bg-bg-elevated text-text-primary shadow-sm'
-                  : 'text-text-secondary hover:text-text-primary hover:bg-bg-tertiary'
+                  ? 'highlight' in tab && tab.highlight
+                    ? 'bg-gradient-to-r from-accent-primary to-accent-secondary text-white shadow-glow-sm'
+                    : 'bg-bg-elevated text-text-primary shadow-sm'
+                  : 'highlight' in tab && tab.highlight
+                    ? 'text-accent-primary hover:text-accent-primary-hover hover:bg-accent-primary/10'
+                    : 'text-text-secondary hover:text-text-primary hover:bg-bg-tertiary'
                 }
               `}
             >
               {tab.icon}
               {tab.label}
+              {'highlight' in tab && tab.highlight && activeTab !== tab.id && (
+                <span className="absolute -top-1 -right-1 w-2 h-2 bg-accent-primary rounded-full animate-pulse" />
+              )}
             </button>
           ))}
         </div>
@@ -336,8 +349,15 @@ export default function App() {
           </div>
         )}
 
+        {/* LangGraph Demo Tab */}
+        {activeTab === 'langgraph' && (
+          <div className="animate-fade-in-up">
+            <WorkflowGraph />
+          </div>
+        )}
+
         {/* Tools/Workflows/Resources Tabs */}
-        {activeTab !== 'guide' && (
+        {activeTab !== 'guide' && activeTab !== 'langgraph' && (
           <div className="grid grid-cols-12 gap-6 animate-fade-in-up">
             {/* Left Panel - Selection */}
             <div className="col-span-4 space-y-3">
