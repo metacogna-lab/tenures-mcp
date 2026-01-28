@@ -1,19 +1,60 @@
 interface StatusIndicatorProps {
-  status: 'online' | 'offline' | 'loading';
+  status: 'online' | 'offline' | 'loading' | 'warning';
   label?: string;
+  showPulse?: boolean;
 }
 
-export function StatusIndicator({ status, label }: StatusIndicatorProps) {
-  const statusColors = {
-    online: 'bg-emerald-500',
-    offline: 'bg-red-500',
-    loading: 'bg-amber-500 animate-pulse',
+/**
+ * Status indicator with optional label.
+ * Shows connection state with appropriate colors and animations.
+ */
+export function StatusIndicator({ status, label, showPulse = true }: StatusIndicatorProps) {
+  const statusConfig = {
+    online: {
+      color: 'bg-success',
+      ringColor: 'ring-success/30',
+      label: label || 'Online',
+    },
+    offline: {
+      color: 'bg-danger',
+      ringColor: 'ring-danger/30',
+      label: label || 'Offline',
+    },
+    loading: {
+      color: 'bg-warning',
+      ringColor: 'ring-warning/30',
+      label: label || 'Connecting...',
+    },
+    warning: {
+      color: 'bg-warning',
+      ringColor: 'ring-warning/30',
+      label: label || 'Warning',
+    },
   };
+
+  const config = statusConfig[status];
+  const shouldPulse = showPulse && (status === 'online' || status === 'loading');
 
   return (
     <div className="flex items-center gap-2">
-      <span className={`w-2 h-2 rounded-full ${statusColors[status]}`} />
-      {label && <span className="text-sm text-text-secondary">{label}</span>}
+      <span className="relative flex h-2 w-2">
+        {shouldPulse && (
+          <span 
+            className={`
+              absolute inline-flex h-full w-full rounded-full opacity-75 
+              ${config.color} animate-ping
+            `}
+          />
+        )}
+        <span 
+          className={`
+            relative inline-flex rounded-full h-2 w-2 
+            ${config.color}
+            ${status === 'loading' ? 'animate-pulse' : ''}
+          `}
+        />
+      </span>
+      <span className="text-sm text-text-secondary">{config.label}</span>
     </div>
   );
 }
