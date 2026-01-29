@@ -122,16 +122,48 @@ Current scaffold:
 
 ## Getting started (dev)
 
-This repo is in scaffold state; commands will be finalized as the server implementation lands. For now:
+### Prerequisites
 
-- **Read the PRD**: `tasks/prd.md`
-- **Review MCP definition**: `tasks/mcp-tasks.md`
-- **Follow the build plan**: `tasks/tasks.md`
+- **Python**: 3.11+
+- **uv**: Python package manager ([install uv](https://docs.astral.sh/uv/getting-started/installation/))
+- **Docker**: for container deployment (optional for local dev)
 
-### Expected prerequisites (based on PRD)
+### Quick Start
 
-- **Python**: 3.11+ (PRD target)
-- **Docker**: for single-tenant container deployment (PRD target)
+```bash
+# Clone and enter the repository
+cd tenures-agent
+
+# Copy environment template
+cp .env.example .env
+
+# Install dependencies
+uv sync --extra dev
+
+# Run the server
+uv run uvicorn backend.main:app --reload
+```
+
+The server starts at `http://localhost:8000`. Test with:
+
+```bash
+curl http://localhost:8000/healthz
+```
+
+**Important:** Always use `uv run` to execute commands. This ensures the local `mcp` and `backend` packages are on the Python path. Running `uvicorn` directly with system Python will fail with `ModuleNotFoundError`.
+
+### Running Tests
+
+```bash
+uv run pytest
+```
+
+### Additional Resources
+
+- **PRD**: `tasks/prd.md`
+- **MCP definition**: `tasks/mcp-tasks.md`
+- **Implementation plan**: `tasks/tasks.md`
+- **API reference**: `docs/configuration.md`
 
 ---
 
