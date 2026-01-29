@@ -103,6 +103,17 @@ paths:
               - extract_expiry_date
               - generate_vendor_report
               - prepare_breach_notice
+              # Integration tools
+              - fetch_property_emails
+              - search_communication_threads
+              - list_property_documents
+              - get_document_content
+              - check_document_expiry
+              - list_active_properties
+              - get_property_contacts
+              - get_upcoming_open_homes
+              - list_arrears_tenancies
+              - get_tenant_communication_history
         - name: X-HITL-Token
           in: header
           required: false
@@ -165,6 +176,7 @@ paths:
               - weekly_vendor_report
               - arrears_detection
               - compliance_audit
+              - unified_collection
         - name: X-User-ID
           in: header
           required: true
@@ -196,6 +208,7 @@ paths:
                 - $ref: '#/components/schemas/VendorReportWorkflowInput'
                 - $ref: '#/components/schemas/ArrearsDetectionWorkflowInput'
                 - $ref: '#/components/schemas/ComplianceAuditWorkflowInput'
+                - $ref: '#/components/schemas/UnifiedCollectionWorkflowInput'
       responses:
         '200':
           description: Workflow executed successfully
@@ -719,6 +732,724 @@ components:
           description: Property identifier
           example: prop_001
       required: [property_id]
+
+    UnifiedCollectionWorkflowInput:
+      type: object
+      properties:
+        property_id:
+          type: string
+          minLength: 1
+          maxLength: 100
+          pattern: '^[a-zA-Z0-9_-]+$'
+          description: Property identifier
+          example: prop_001
+        collection_scope:
+          type: array
+          items:
+            type: string
+            enum: [gmail, drive, vaultre, ailo]
+          default: [gmail, drive, vaultre, ailo]
+          description: Which integrations to collect from
+      required: [property_id]
+
+    # =============================================================================
+    # Integration Enums
+    # =============================================================================
+
+    PropertyClass:
+      type: string
+      enum: [residential, commercial, rural, land, business]
+      description: VaultRE property classification
+
+    PropertyStatus:
+      type: string
+      enum: [prospect, appraisal, listing, under_contract, sold, withdrawn, leased, available]
+      description: VaultRE property status
+
+    ContactType:
+      type: string
+      enum: [owner, tenant, purchaser, landlord, vendor, buyer]
+      description: VaultRE contact type
+
+    RentFrequency:
+      type: string
+      enum: [weekly, fortnightly, monthly]
+      description: Ailo rent frequency
+
+    ArrearsStatus:
+      type: string
+      enum: [current, minor, moderate, severe, critical]
+      description: Ailo arrears status classification
+
+    GmailLabelType:
+      type: string
+      enum: [INBOX, SENT, DRAFT, SPAM, TRASH, STARRED, IMPORTANT, UNREAD]
+      description: Gmail label types
+
+    DriveMimeType:
+      type: string
+      enum:
+        - application/pdf
+        - application/msword
+        - application/vnd.openxmlformats-officedocument.wordprocessingml.document
+        - application/vnd.google-apps.spreadsheet
+        - application/vnd.openxmlformats-officedocument.spreadsheetml.sheet
+        - application/vnd.google-apps.folder
+        - image/png
+        - image/jpeg
+      description: Common Google Drive MIME types
+
+    # =============================================================================
+    # Gmail Schemas
+    # =============================================================================
+
+    EmailSummary:
+      type: object
+      properties:
+        message_id:
+          type: string
+        thread_id:
+          type: string
+        subject:
+          type: string
+        sender:
+          type: string
+        recipient:
+          type: string
+        snippet:
+          type: string
+        received_at:
+          type: string
+          format: date-time
+        labels:
+          type: array
+          items:
+            type: string
+        has_attachments:
+          type: boolean
+          default: false
+      required: [message_id, thread_id, subject, sender, recipient, snippet, received_at]
+
+    ThreadSummary:
+      type: object
+      properties:
+        thread_id:
+          type: string
+        subject:
+          type: string
+        participants:
+          type: array
+          items:
+            type: string
+        message_count:
+          type: integer
+        last_message_at:
+          type: string
+          format: date-time
+        snippet:
+          type: string
+      required: [thread_id, subject, message_count, last_message_at, snippet]
+
+    # =============================================================================
+    # Google Drive Schemas
+    # =============================================================================
+
+    DocumentInfo:
+      type: object
+      properties:
+        file_id:
+          type: string
+        name:
+          type: string
+        mime_type:
+          type: string
+        size_bytes:
+          type: integer
+          nullable: true
+        modified_at:
+          type: string
+          format: date-time
+        web_link:
+          type: string
+          nullable: true
+        expiry_date:
+          type: string
+          format: date
+          nullable: true
+          description: Document expiry for compliance
+      required: [file_id, name, mime_type, modified_at]
+
+    ExpiryAlert:
+      type: object
+      properties:
+        file_id:
+          type: string
+        document_name:
+          type: string
+        document_type:
+          type: string
+        expiry_date:
+          type: string
+          format: date
+        days_until_expiry:
+          type: integer
+        alert_level:
+          type: string
+          enum: [info, warning, critical]
+          description: Alert severity level
+        property_id:
+          type: string
+          nullable: true
+      required: [file_id, document_name, document_type, expiry_date, days_until_expiry, alert_level]
+
+    # =============================================================================
+    # VaultRE Schemas
+    # =============================================================================
+
+    PropertySummary:
+      type: object
+      properties:
+        property_id:
+          type: string
+        address:
+          type: string
+        property_class:
+          $ref: '#/components/schemas/PropertyClass'
+        status:
+          $ref: '#/components/schemas/PropertyStatus'
+        bedrooms:
+          type: integer
+          nullable: true
+        bathrooms:
+          type: integer
+          nullable: true
+        price_display:
+          type: string
+          nullable: true
+        primary_agent:
+          type: string
+          nullable: true
+      required: [property_id, address, property_class, status]
+
+    VaultREContact:
+      type: object
+      properties:
+        id:
+          type: string
+        first_name:
+          type: string
+        last_name:
+          type: string
+        email:
+          type: string
+          nullable: true
+        phone:
+          type: string
+          nullable: true
+        mobile:
+          type: string
+          nullable: true
+        contact_type:
+          $ref: '#/components/schemas/ContactType'
+        company:
+          type: string
+          nullable: true
+        notes:
+          type: string
+          nullable: true
+        property_ids:
+          type: array
+          items:
+            type: string
+        created_at:
+          type: string
+          format: date-time
+          nullable: true
+        version:
+          type: string
+          default: v1
+      required: [id, first_name, last_name, contact_type]
+
+    PropertyContacts:
+      type: object
+      properties:
+        property_id:
+          type: string
+        owners:
+          type: array
+          items:
+            $ref: '#/components/schemas/VaultREContact'
+        tenants:
+          type: array
+          items:
+            $ref: '#/components/schemas/VaultREContact'
+        landlords:
+          type: array
+          items:
+            $ref: '#/components/schemas/VaultREContact'
+        purchasers:
+          type: array
+          items:
+            $ref: '#/components/schemas/VaultREContact'
+      required: [property_id]
+
+    OpenHomeSummary:
+      type: object
+      properties:
+        open_home_id:
+          type: string
+        property_id:
+          type: string
+        property_address:
+          type: string
+        start_time:
+          type: string
+          format: date-time
+        end_time:
+          type: string
+          format: date-time
+        agent_name:
+          type: string
+          nullable: true
+      required: [open_home_id, property_id, property_address, start_time, end_time]
+
+    # =============================================================================
+    # Ailo Schemas
+    # =============================================================================
+
+    AiloLedgerSummary:
+      type: object
+      properties:
+        ledger_id:
+          type: string
+        tenancy_id:
+          type: string
+        property_id:
+          type: string
+        current_balance:
+          type: number
+          format: float
+        rent_amount:
+          type: number
+          format: float
+        arrears_days:
+          type: integer
+        arrears_status:
+          $ref: '#/components/schemas/ArrearsStatus'
+        next_due_date:
+          type: string
+          format: date
+        last_payment_date:
+          type: string
+          format: date
+          nullable: true
+      required: [ledger_id, tenancy_id, property_id, current_balance, rent_amount, arrears_days, arrears_status, next_due_date]
+
+    ArrearsReport:
+      type: object
+      properties:
+        tenancy_id:
+          type: string
+        property_id:
+          type: string
+        property_address:
+          type: string
+        tenant_name:
+          type: string
+        tenant_email:
+          type: string
+          nullable: true
+        current_balance:
+          type: number
+          format: float
+        arrears_days:
+          type: integer
+        arrears_status:
+          $ref: '#/components/schemas/ArrearsStatus'
+        rent_amount:
+          type: number
+          format: float
+        rent_frequency:
+          $ref: '#/components/schemas/RentFrequency'
+        last_payment_date:
+          type: string
+          format: date
+          nullable: true
+        recommended_action:
+          type: string
+      required: [tenancy_id, property_id, property_address, tenant_name, current_balance, arrears_days, arrears_status, rent_amount, rent_frequency, recommended_action]
+
+    CommunicationEntry:
+      type: object
+      properties:
+        id:
+          type: string
+        type:
+          type: string
+          enum: [email, sms, note]
+          description: Communication type
+        direction:
+          type: string
+          enum: [inbound, outbound]
+          description: Communication direction
+        subject:
+          type: string
+          nullable: true
+        snippet:
+          type: string
+        timestamp:
+          type: string
+          format: date-time
+        contact_email:
+          type: string
+          nullable: true
+        contact_name:
+          type: string
+          nullable: true
+      required: [id, type, direction, snippet, timestamp]
+
+    CommunicationHistory:
+      type: object
+      properties:
+        tenancy_id:
+          type: string
+        property_id:
+          type: string
+        tenant_name:
+          type: string
+        communications:
+          type: array
+          items:
+            $ref: '#/components/schemas/CommunicationEntry'
+        total_count:
+          type: integer
+          default: 0
+      required: [tenancy_id, property_id, tenant_name]
+
+    # =============================================================================
+    # Integration Tool Input Schemas
+    # =============================================================================
+
+    FetchPropertyEmailsInput:
+      type: object
+      properties:
+        property_id:
+          type: string
+          minLength: 1
+          maxLength: 100
+          pattern: '^[a-zA-Z0-9_-]+$'
+          description: Property ID
+          example: prop_001
+        days_back:
+          type: integer
+          minimum: 1
+          maximum: 365
+          default: 30
+          description: Days to look back
+        version:
+          type: string
+          default: v1
+      required: [property_id]
+
+    SearchCommunicationThreadsInput:
+      type: object
+      properties:
+        query:
+          type: string
+          minLength: 1
+          maxLength: 500
+          description: Search query
+        contact_email:
+          type: string
+          nullable: true
+          description: Filter by contact email
+        max_results:
+          type: integer
+          minimum: 1
+          maximum: 50
+          default: 10
+          description: Maximum results
+        version:
+          type: string
+          default: v1
+      required: [query]
+
+    ListPropertyDocumentsInput:
+      type: object
+      properties:
+        property_id:
+          type: string
+          minLength: 1
+          maxLength: 100
+          description: Property ID
+          example: prop_001
+        version:
+          type: string
+          default: v1
+      required: [property_id]
+
+    GetDocumentContentInput:
+      type: object
+      properties:
+        file_id:
+          type: string
+          minLength: 1
+          maxLength: 100
+          description: File ID
+        version:
+          type: string
+          default: v1
+      required: [file_id]
+
+    CheckDocumentExpiryInput:
+      type: object
+      properties:
+        property_id:
+          type: string
+          minLength: 1
+          maxLength: 100
+          description: Property ID
+          example: prop_001
+        days_ahead:
+          type: integer
+          minimum: 1
+          maximum: 365
+          default: 30
+          description: Days to look ahead for expiries
+        version:
+          type: string
+          default: v1
+      required: [property_id]
+
+    ListActivePropertiesInput:
+      type: object
+      properties:
+        status:
+          type: string
+          nullable: true
+          description: Filter by status
+        limit:
+          type: integer
+          minimum: 1
+          maximum: 100
+          default: 20
+          description: Maximum results
+        version:
+          type: string
+          default: v1
+
+    GetPropertyContactsInput:
+      type: object
+      properties:
+        property_id:
+          type: string
+          minLength: 1
+          maxLength: 100
+          description: Property ID
+          example: prop_001
+        version:
+          type: string
+          default: v1
+      required: [property_id]
+
+    GetUpcomingOpenHomesInput:
+      type: object
+      properties:
+        days_ahead:
+          type: integer
+          minimum: 1
+          maximum: 30
+          default: 7
+          description: Days to look ahead
+        version:
+          type: string
+          default: v1
+
+    ListArrearsTenanciesInput:
+      type: object
+      properties:
+        min_days:
+          type: integer
+          minimum: 1
+          default: 1
+          description: Minimum days in arrears
+        max_results:
+          type: integer
+          minimum: 1
+          maximum: 100
+          default: 20
+          description: Maximum results
+        version:
+          type: string
+          default: v1
+
+    GetTenantCommunicationHistoryInput:
+      type: object
+      properties:
+        tenancy_id:
+          type: string
+          minLength: 1
+          maxLength: 100
+          description: Tenancy ID
+          example: tenancy_001
+        limit:
+          type: integer
+          minimum: 1
+          maximum: 100
+          default: 20
+          description: Maximum communications
+        version:
+          type: string
+          default: v1
+      required: [tenancy_id]
+
+    # =============================================================================
+    # Integration Tool Output Schemas
+    # =============================================================================
+
+    FetchPropertyEmailsOutput:
+      type: object
+      properties:
+        property_id:
+          type: string
+        emails:
+          type: array
+          items:
+            $ref: '#/components/schemas/EmailSummary'
+        total_count:
+          type: integer
+          default: 0
+        version:
+          type: string
+      required: [property_id]
+
+    SearchCommunicationThreadsOutput:
+      type: object
+      properties:
+        query:
+          type: string
+        threads:
+          type: array
+          items:
+            $ref: '#/components/schemas/ThreadSummary'
+        total_count:
+          type: integer
+          default: 0
+        version:
+          type: string
+      required: [query]
+
+    ListPropertyDocumentsOutput:
+      type: object
+      properties:
+        property_id:
+          type: string
+        documents:
+          type: array
+          items:
+            $ref: '#/components/schemas/DocumentInfo'
+        total_count:
+          type: integer
+          default: 0
+        version:
+          type: string
+      required: [property_id]
+
+    GetDocumentContentOutput:
+      type: object
+      properties:
+        file_id:
+          type: string
+        name:
+          type: string
+        mime_type:
+          type: string
+        content_preview:
+          type: string
+          maxLength: 5000
+          default: ""
+          description: Content preview/extracted text
+        size_bytes:
+          type: integer
+          nullable: true
+        version:
+          type: string
+      required: [file_id, name, mime_type]
+
+    CheckDocumentExpiryOutput:
+      type: object
+      properties:
+        property_id:
+          type: string
+        alerts:
+          type: array
+          items:
+            $ref: '#/components/schemas/ExpiryAlert'
+        total_count:
+          type: integer
+          default: 0
+        version:
+          type: string
+      required: [property_id]
+
+    ListActivePropertiesOutput:
+      type: object
+      properties:
+        properties:
+          type: array
+          items:
+            $ref: '#/components/schemas/PropertySummary'
+        total_count:
+          type: integer
+          default: 0
+        version:
+          type: string
+
+    GetPropertyContactsOutput:
+      type: object
+      properties:
+        property_id:
+          type: string
+        contacts:
+          $ref: '#/components/schemas/PropertyContacts'
+        version:
+          type: string
+      required: [property_id, contacts]
+
+    GetUpcomingOpenHomesOutput:
+      type: object
+      properties:
+        open_homes:
+          type: array
+          items:
+            $ref: '#/components/schemas/OpenHomeSummary'
+        total_count:
+          type: integer
+          default: 0
+        version:
+          type: string
+
+    ListArrearsTenanciesOutput:
+      type: object
+      properties:
+        arrears_reports:
+          type: array
+          items:
+            $ref: '#/components/schemas/ArrearsReport'
+        total_count:
+          type: integer
+          default: 0
+        version:
+          type: string
+
+    GetTenantCommunicationHistoryOutput:
+      type: object
+      properties:
+        history:
+          $ref: '#/components/schemas/CommunicationHistory'
+        version:
+          type: string
+      required: [history]
 
     # Resource Schemas
     PropertyDetails:
