@@ -8,7 +8,8 @@
   --color-bg-primary: #09090b;
   --color-bg-secondary: #0f0f12;
   --color-bg-tertiary: #18181b;
-  --color-accent: #6366f1;
+  --color-accent: #FACC15;
+  --color-accent-hover: #EAB308;
   
   /* Spacing scale */
   --space-1: 0.25rem;
@@ -93,10 +94,16 @@ code, pre, .font-mono {
   outline-offset: 2px;
 }
 
+/* Section labels: optional uppercase + letter-spacing */
+.label-uppercase {
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
 /* Selection */
 ::selection {
-  background-color: rgba(99, 102, 241, 0.3);
-  color: #fafafa;
+  background-color: rgba(250, 204, 21, 0.25);
+  color: #09090b;
 }
 
 /* Utility classes */
@@ -112,17 +119,17 @@ code, pre, .font-mono {
     border: 1px solid rgba(255, 255, 255, 0.06);
   }
   
-  /* Gradient text */
+  /* Gradient text - yellow accent */
   .text-gradient {
-    background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 50%, #a78bfa 100%);
+    background: linear-gradient(135deg, #FACC15 0%, #EAB308 50%, #CA8A04 100%);
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
     background-clip: text;
   }
   
-  /* Subtle glow effects */
+  /* Subtle glow effects - yellow */
   .glow-accent {
-    box-shadow: 0 0 40px -10px rgba(99, 102, 241, 0.3);
+    box-shadow: 0 0 40px -10px rgba(250, 204, 21, 0.3);
   }
   
   /* Inner highlight for depth */

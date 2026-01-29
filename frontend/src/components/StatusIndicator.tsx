@@ -11,9 +11,9 @@ interface StatusIndicatorProps {
 export function StatusIndicator({ status, label, showPulse = true }: StatusIndicatorProps) {
   const statusConfig = {
     online: {
-      color: 'bg-success',
-      ringColor: 'ring-success/30',
-      label: label || 'Online',
+      color: 'bg-accent-primary',
+      ringColor: 'ring-accent-primary/30',
+      label: label || 'Connected',
     },
     offline: {
       color: 'bg-danger',

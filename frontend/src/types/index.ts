@@ -1,13 +1,23 @@
+/** Single field for tools that take one input. */
+export interface ToolInputField {
+  name: string;
+  type: string;
+  placeholder: string;
+  validation?: string;
+}
+
 export interface Tool {
   id: string;
   name: string;
   description: string;
   tier: 'A' | 'B' | 'C';
   requiresHitl?: boolean;
+  /** Single-field: field/type/placeholder. Multi-field tools also set fields[]. */
   inputSchema: {
     field: string;
     type: string;
     placeholder: string;
+    fields?: ToolInputField[];
   };
 }
 

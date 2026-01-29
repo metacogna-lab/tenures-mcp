@@ -19,6 +19,9 @@ from mcp.schemas.tools import (
     PrepareBreachNoticeInput,
     PrepareBreachNoticeOutput,
     SentimentCategory,
+    WebSearchInput,
+    WebSearchOutput,
+    WebSearchResultItem,
 )
 from mcp.schemas.base import RequestContext
 
@@ -345,3 +348,59 @@ Status: DRAFT ONLY - NOT SENT
         status="draft",
         created_at=datetime.now(),
     )
+
+
+async def web_search(
+    input_data: WebSearchInput, context: RequestContext
+) -> WebSearchOutput:
+    """
+    Web search via Tavily API. Use when the question requires current or external information.
+    Disabled when TAVILY_API_KEY is not set (returns empty results with a note).
+    """
+    from mcp.config import settings
+
+    await asyncio.sleep(0.05)
+
+    if not settings.tavily_api_key:
+        return WebSearchOutput(
+            query=input_data.query,
+            results=[],
+        )
+
+    import httpx
+
+    url = "https://api.tavily.com/search"
+    payload = {
+        "query": input_data.query,
+        "max_results": min(input_data.max_results, settings.web_search_max_results),
+        "include_answer": False,
+    }
+    headers = {"Content-Type": "application/json"}
+    headers["Authorization"] = f"Bearer {settings.tavily_api_key}"
+    try:
+        async with httpx.AsyncClient(timeout=15.0) as client:
+            resp = await client.post(
+                url,
+                json=payload,
+                headers=headers,
+            )
+            resp.raise_for_status()
+            data = resp.json()
+    except httpx.HTTPStatusError as e:
+        return WebSearchOutput(
+            query=input_data.query,
+            results=[],
+        )
+    except Exception:
+        return WebSearchOutput(query=input_data.query, results=[])
+
+    raw_results = data.get("results", [])
+    results = [
+        WebSearchResultItem(
+            title=r.get("title", ""),
+            url=r.get("url", ""),
+            snippet=r.get("content", "")[:500] if r.get("content") else "",
+        )
+        for r in raw_results[: input_data.max_results]
+    ]
+    return WebSearchOutput(query=input_data.query, results=results)

@@ -1,0 +1,857 @@
+openapi: 3.0.3
+info:
+  title: Tenure MCP Server API
+  description: |
+    Model Context Protocol (MCP) Server for Ray White real estate offices.
+    Enables conversational agents to generate vendor reports, detect rent arrears,
+    and process unstructured documents via secure, policy-enforced tools and resources.
+  version: 0.1.0
+  contact:
+    name: Tenure Platform Team
+    email: platform@tenure.com.au
+  license:
+    name: Proprietary
+    url: https://tenure.com.au/license
+
+servers:
+  - url: http://localhost:8000
+    description: Local development
+  - url: https://mcp.tenure.com.au
+    description: Production (placeholder)
+
+tags:
+  - name: Health
+    description: Health check endpoints
+  - name: Tools
+    description: Tool execution endpoints
+  - name: Workflows
+    description: LangGraph workflow execution
+  - name: Resources
+    description: Resource retrieval endpoints
+
+paths:
+  /healthz:
+    get:
+      tags: [Health]
+      summary: Liveness probe
+      operationId: healthCheck
+      responses:
+        '200':
+          description: Server is alive
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+
+  /ready:
+    get:
+      tags: [Health]
+      summary: Readiness probe
+      operationId: readinessCheck
+      responses:
+        '200':
+          description: Server readiness status
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReadinessResponse'
+
+  /version:
+    get:
+      tags: [Health]
+      summary: Get API version
+      operationId: getVersion
+      responses:
+        '200':
+          description: Version information
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VersionResponse'
+
+  /metrics:
+    get:
+      tags: [Health]
+      summary: Prometheus metrics
+      operationId: getMetrics
+      responses:
+        '200':
+          description: Prometheus-compatible metrics
+          content:
+            text/plain:
+              schema:
+                type: string
+
+  /v1/tools/{tool_name}:
+    post:
+      tags: [Tools]
+      summary: Execute a tool
+      operationId: executeTool
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: tool_name
+          in: path
+          required: true
+          description: Name of the tool to execute
+          schema:
+            type: string
+            enum:
+              - analyze_open_home_feedback
+              - calculate_breach_status
+              - ocr_document
+              - extract_expiry_date
+              - generate_vendor_report
+              - prepare_breach_notice
+        - name: X-HITL-Token
+          in: header
+          required: false
+          description: HITL confirmation token (required for Tier C tools)
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ToolExecutionRequest'
+      responses:
+        '200':
+          description: Tool executed successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ToolExecutionResponse'
+        '400':
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Access denied (RBAC or HITL)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Tool not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Tool execution failed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /v1/workflows/{workflow_name}:
+    post:
+      tags: [Workflows]
+      summary: Execute a LangGraph workflow
+      operationId: executeWorkflow
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: workflow_name
+          in: path
+          required: true
+          description: Name of the workflow to execute
+          schema:
+            type: string
+            enum:
+              - weekly_vendor_report
+              - arrears_detection
+              - compliance_audit
+        - name: X-User-ID
+          in: header
+          required: true
+          schema:
+            type: string
+        - name: X-Tenant-ID
+          in: header
+          required: true
+          schema:
+            type: string
+        - name: X-Auth-Context
+          in: header
+          required: true
+          schema:
+            type: string
+        - name: X-Role
+          in: header
+          required: false
+          schema:
+            type: string
+            enum: [agent, admin]
+            default: agent
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              oneOf:
+                - $ref: '#/components/schemas/VendorReportWorkflowInput'
+                - $ref: '#/components/schemas/ArrearsDetectionWorkflowInput'
+                - $ref: '#/components/schemas/ComplianceAuditWorkflowInput'
+      responses:
+        '200':
+          description: Workflow executed successfully
+          content:
+            application/json:
+              schema:
+                type: object
+        '400':
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Workflow not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Workflow execution failed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /v1/resources/{resource_path}:
+    get:
+      tags: [Resources]
+      summary: Retrieve a resource
+      operationId: getResource
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: resource_path
+          in: path
+          required: true
+          description: Resource URI path
+          schema:
+            type: string
+          examples:
+            propertyDetails:
+              value: vault://properties/prop_001/details
+            propertyFeedback:
+              value: vault://properties/prop_001/feedback
+            ledgerSummary:
+              value: ailo://ledgers/tenancy_001/summary
+            propertyDocuments:
+              value: vault://properties/prop_001/documents
+        - name: X-User-ID
+          in: header
+          required: true
+          schema:
+            type: string
+        - name: X-Tenant-ID
+          in: header
+          required: true
+          schema:
+            type: string
+        - name: X-Auth-Context
+          in: header
+          required: true
+          schema:
+            type: string
+        - name: X-Role
+          in: header
+          required: false
+          schema:
+            type: string
+            enum: [agent, admin]
+            default: agent
+      responses:
+        '200':
+          description: Resource retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResourceResponse'
+        '400':
+          description: Invalid request context
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Resource not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Resource retrieval failed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      description: Bearer token authentication
+
+  schemas:
+    # Health Schemas
+    HealthResponse:
+      type: object
+      properties:
+        status:
+          type: string
+          example: healthy
+        version:
+          type: string
+          example: 0.1.0
+      required: [status, version]
+
+    ReadinessResponse:
+      type: object
+      properties:
+        status:
+          type: string
+          enum: [ready, not_ready]
+        checks:
+          type: object
+          properties:
+            database:
+              type: boolean
+            tools_registered:
+              type: boolean
+            resources_registered:
+              type: boolean
+        version:
+          type: string
+      required: [status, checks, version]
+
+    VersionResponse:
+      type: object
+      properties:
+        version:
+          type: string
+          example: 0.1.0
+        api_version:
+          type: string
+          example: v1
+      required: [version, api_version]
+
+    # Request/Response Base Schemas
+    RequestContext:
+      type: object
+      properties:
+        user_id:
+          type: string
+          description: User identifier
+          example: user_123
+        tenant_id:
+          type: string
+          description: Tenant/organization identifier
+          example: tenant_456
+        auth_context:
+          type: string
+          description: Authentication context token
+          example: bearer_token_xyz
+        ip_address:
+          type: string
+          description: Client IP address
+          example: 192.168.1.1
+        role:
+          type: string
+          enum: [agent, admin]
+          default: agent
+          description: User role
+      required: [user_id, tenant_id, auth_context]
+
+    ToolExecutionRequest:
+      type: object
+      properties:
+        context:
+          $ref: '#/components/schemas/RequestContext'
+        correlation_id:
+          type: string
+          format: uuid
+          description: Request correlation ID
+          example: 550e8400-e29b-41d4-a716-446655440000
+        input_data:
+          type: object
+          description: Tool-specific input parameters
+      required: [context, input_data]
+
+    ToolExecutionResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        correlation_id:
+          type: string
+          format: uuid
+        timestamp:
+          type: string
+          format: date-time
+        tool_name:
+          type: string
+        output_data:
+          type: object
+        execution_time_ms:
+          type: number
+          format: float
+        trace_id:
+          type: string
+      required: [success, correlation_id, tool_name, output_data]
+
+    ErrorResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: false
+        correlation_id:
+          type: string
+          format: uuid
+        timestamp:
+          type: string
+          format: date-time
+        error:
+          type: string
+        error_code:
+          type: string
+        details:
+          type: object
+      required: [success, error]
+
+    ResourceResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        correlation_id:
+          type: string
+          format: uuid
+        resource_path:
+          type: string
+        data:
+          type: object
+      required: [success, correlation_id, resource_path, data]
+
+    # Tool Input Schemas
+    AnalyzeFeedbackInput:
+      type: object
+      properties:
+        property_id:
+          type: string
+          minLength: 1
+          maxLength: 100
+          pattern: '^[a-zA-Z0-9_-]+$'
+          description: Property identifier
+          example: prop_001
+        version:
+          type: string
+          default: v1
+      required: [property_id]
+
+    CalculateBreachInput:
+      type: object
+      properties:
+        tenancy_id:
+          type: string
+          minLength: 1
+          maxLength: 100
+          pattern: '^[a-zA-Z0-9_-]+$'
+          description: Tenancy identifier
+          example: tenancy_001
+        version:
+          type: string
+          default: v1
+      required: [tenancy_id]
+
+    OCRDocumentInput:
+      type: object
+      properties:
+        document_url:
+          type: string
+          description: URL to document (http://, https://, or vault://)
+          example: vault://documents/doc_001.pdf
+        version:
+          type: string
+          default: v1
+      required: [document_url]
+
+    ExtractExpiryInput:
+      type: object
+      properties:
+        text:
+          type: string
+          minLength: 10
+          maxLength: 10000
+          description: Text to extract dates from
+        version:
+          type: string
+          default: v1
+      required: [text]
+
+    GenerateVendorReportInput:
+      type: object
+      properties:
+        property_id:
+          type: string
+          minLength: 1
+          maxLength: 100
+          pattern: '^[a-zA-Z0-9_-]+$'
+          description: Property identifier
+          example: prop_001
+        version:
+          type: string
+          default: v1
+      required: [property_id]
+
+    PrepareBreachNoticeInput:
+      type: object
+      properties:
+        tenancy_id:
+          type: string
+          minLength: 1
+          maxLength: 100
+          pattern: '^[a-zA-Z0-9_-]+$'
+          description: Tenancy identifier
+          example: tenancy_001
+        breach_type:
+          type: string
+          enum: [rent_arrears, lease_violation, property_damage]
+          description: Type of breach
+        version:
+          type: string
+          default: v1
+      required: [tenancy_id, breach_type]
+
+    # Tool Output Schemas
+    SentimentCategory:
+      type: object
+      properties:
+        category:
+          type: string
+          example: positive
+        count:
+          type: integer
+          example: 5
+        percentage:
+          type: number
+          format: float
+          example: 45.5
+      required: [category, count, percentage]
+
+    AnalyzeFeedbackOutput:
+      type: object
+      properties:
+        property_id:
+          type: string
+        total_feedback_count:
+          type: integer
+        sentiment_categories:
+          type: array
+          items:
+            $ref: '#/components/schemas/SentimentCategory'
+        top_comments:
+          type: array
+          items:
+            type: string
+          maxItems: 10
+        version:
+          type: string
+
+    BreachRisk:
+      type: object
+      properties:
+        level:
+          type: string
+          enum: [low, medium, high, critical]
+        days_overdue:
+          type: integer
+          nullable: true
+        breach_legal_status:
+          type: string
+          enum: [compliant, at_risk, breached]
+        recommended_action:
+          type: string
+          nullable: true
+      required: [level, breach_legal_status]
+
+    CalculateBreachOutput:
+      type: object
+      properties:
+        tenancy_id:
+          type: string
+        breach_risk:
+          $ref: '#/components/schemas/BreachRisk'
+        current_balance:
+          type: number
+          format: float
+          nullable: true
+        last_payment_date:
+          type: string
+          format: date-time
+          nullable: true
+        version:
+          type: string
+
+    OCRDocumentOutput:
+      type: object
+      properties:
+        document_url:
+          type: string
+        extracted_text:
+          type: string
+        confidence_score:
+          type: number
+          format: float
+          minimum: 0
+          maximum: 1
+          nullable: true
+        page_count:
+          type: integer
+          nullable: true
+        version:
+          type: string
+
+    ExtractedDate:
+      type: object
+      properties:
+        field_name:
+          type: string
+          example: expiry_date
+        date_value:
+          type: string
+          format: date-time
+        confidence:
+          type: number
+          format: float
+          minimum: 0
+          maximum: 1
+      required: [field_name, date_value, confidence]
+
+    ExtractExpiryOutput:
+      type: object
+      properties:
+        extracted_dates:
+          type: array
+          items:
+            $ref: '#/components/schemas/ExtractedDate'
+        version:
+          type: string
+
+    GenerateVendorReportOutput:
+      type: object
+      properties:
+        property_id:
+          type: string
+        report_date:
+          type: string
+          format: date-time
+        feedback_summary:
+          type: object
+        market_trends:
+          type: object
+          nullable: true
+        recommendations:
+          type: array
+          items:
+            type: string
+        version:
+          type: string
+
+    PrepareBreachNoticeOutput:
+      type: object
+      properties:
+        notice_id:
+          type: string
+          description: Unique notice identifier
+        tenancy_id:
+          type: string
+        breach_type:
+          type: string
+          enum: [rent_arrears, lease_violation, property_damage]
+        draft_content:
+          type: string
+          description: Draft breach notice content
+        status:
+          type: string
+          enum: [draft, pending_approval]
+          default: draft
+        created_at:
+          type: string
+          format: date-time
+        version:
+          type: string
+
+    # Workflow Input Schemas
+    VendorReportWorkflowInput:
+      type: object
+      properties:
+        property_id:
+          type: string
+          description: Property identifier
+          example: prop_001
+      required: [property_id]
+
+    ArrearsDetectionWorkflowInput:
+      type: object
+      properties:
+        tenancy_id:
+          type: string
+          description: Tenancy identifier
+          example: tenancy_001
+      required: [tenancy_id]
+
+    ComplianceAuditWorkflowInput:
+      type: object
+      properties:
+        property_id:
+          type: string
+          description: Property identifier
+          example: prop_001
+      required: [property_id]
+
+    # Resource Schemas
+    PropertyDetails:
+      type: object
+      properties:
+        property_id:
+          type: string
+        address:
+          type: string
+        property_type:
+          type: string
+        bedrooms:
+          type: integer
+        bathrooms:
+          type: integer
+        price:
+          type: number
+        status:
+          type: string
+        listed_date:
+          type: string
+          format: date
+
+    FeedbackEntry:
+      type: object
+      properties:
+        feedback_id:
+          type: string
+        date:
+          type: string
+          format: date
+        comment:
+          type: string
+        sentiment:
+          type: string
+          enum: [positive, neutral, negative]
+
+    PropertyFeedback:
+      type: object
+      properties:
+        property_id:
+          type: string
+        feedback_entries:
+          type: array
+          items:
+            $ref: '#/components/schemas/FeedbackEntry'
+
+    LedgerSummary:
+      type: object
+      properties:
+        tenancy_id:
+          type: string
+        property_id:
+          type: string
+        current_balance:
+          type: number
+          format: float
+        last_payment_date:
+          type: string
+          format: date
+        next_payment_due:
+          type: string
+          format: date
+        rent_amount:
+          type: number
+          format: float
+        status:
+          type: string
+          enum: [active, inactive, terminated]
+
+    DocumentEntry:
+      type: object
+      properties:
+        document_id:
+          type: string
+        document_type:
+          type: string
+          enum: [contract, certificate, lease, inspection]
+        url:
+          type: string
+        uploaded_date:
+          type: string
+          format: date
+
+    PropertyDocuments:
+      type: object
+      properties:
+        property_id:
+          type: string
+        documents:
+          type: array
+          items:
+            $ref: '#/components/schemas/DocumentEntry'
+
+    # Agent Manifest Schema
+    AgentManifest:
+      type: object
+      properties:
+        agent_id:
+          type: string
+          description: Agent identifier
+          example: agent.pm.get_property_details
+        version:
+          type: string
+          description: Semver version
+          example: v1.0.0
+        input_schema:
+          type: object
+          description: JSON Schema for input
+        output_schema:
+          type: object
+          description: JSON Schema for output
+        permitted_tools:
+          type: array
+          items:
+            type: string
+        permitted_resources:
+          type: array
+          items:
+            type: string
+        rbac_policy_level:
+          type: string
+          enum: [Low, Medium, High]
+        workflow_version:
+          type: string
+          nullable: true
+        prompt_hash:
+          type: string
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+      required: [agent_id, version, input_schema, output_schema, rbac_policy_level]
+
+security:
+  - bearerAuth: []

@@ -1,8 +1,8 @@
 import { useState, useCallback } from 'react';
 import type { ToolResponse, WorkflowResponse, HealthStatus, ReadyStatus } from '../types';
 
-const API_BASE = '/api';
-const AUTH_TOKEN = 'dev-token-insecure';
+const API_BASE = import.meta.env.VITE_API_BASE ?? '/api';
+const AUTH_TOKEN = import.meta.env.VITE_MCP_AUTH_TOKEN ?? 'dev-token-insecure';
 
 interface ApiState<T> {
   data: T | null;
@@ -67,15 +67,21 @@ export function useMcpApi() {
     }
   }, []);
 
-  const executeTool = useCallback(async (toolName: string, inputData: Record<string, unknown>) => {
+  const executeTool = useCallback(async (toolName: string, inputData: Record<string, unknown>, hitlToken?: string) => {
     setToolState({ data: null, loading: true, error: null });
     try {
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${AUTH_TOKEN}`,
+        'X-User-ID': 'demo_user',
+        'X-Tenant-ID': 'demo_tenant',
+        'X-Auth-Context': 'demo_token',
+        'X-Role': 'agent',
+      };
+      if (hitlToken) headers['X-HITL-Token'] = hitlToken;
       const res = await fetch(`${API_BASE}/v1/tools/${toolName}`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${AUTH_TOKEN}`,
-        },
+        headers,
         body: JSON.stringify({
           tool_name: toolName,
           context: {

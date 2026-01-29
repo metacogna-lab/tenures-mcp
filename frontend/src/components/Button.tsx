@@ -38,7 +38,7 @@ export function Button({
   
   const variantClasses = {
     primary: `
-      bg-accent-primary text-white
+      bg-accent-primary text-bg-primary
       hover:bg-accent-primary-hover
       shadow-glow-sm hover:shadow-glow
       focus-visible:ring-2 focus-visible:ring-accent-primary focus-visible:ring-offset-2 focus-visible:ring-offset-bg-primary

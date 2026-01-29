@@ -41,6 +41,18 @@ class Settings(BaseSettings):
     multi_tenant_enabled: bool = False
     production_integrations_enabled: bool = False
 
+    # Query agent (LangGraph + LLM)
+    openai_api_key: str = ""
+    query_agent_model: str = "gpt-4o-mini"
+    query_agent_max_steps: int = 5
+
+    # Web Search (Tavily or similar)
+    tavily_api_key: str = ""
+    web_search_max_results: int = 5
+
+    # MCP transport for langchain-mcp-adapters (base URL when agent connects to self)
+    mcp_sse_url: str = "http://127.0.0.1:8000/sse"
+
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",

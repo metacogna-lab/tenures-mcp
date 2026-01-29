@@ -15,11 +15,11 @@ export default {
         'bg-hover': '#27272a',
         'bg-active': '#2e2e33',
         
-        // Accent colors - refined indigo with warmth
-        'accent-primary': '#6366f1',
-        'accent-primary-hover': '#818cf8',
-        'accent-secondary': '#8b5cf6',
-        'accent-tertiary': '#a78bfa',
+        // Accent colors - yellow (design system)
+        'accent-primary': '#FACC15',
+        'accent-primary-hover': '#EAB308',
+        'accent-secondary': '#CA8A04',
+        'accent-tertiary': '#A16207',
         
         // Semantic colors
         'success': '#10b981',
@@ -41,7 +41,7 @@ export default {
         'border-subtle': 'rgba(255, 255, 255, 0.06)',
         'border-default': 'rgba(255, 255, 255, 0.1)',
         'border-strong': 'rgba(255, 255, 255, 0.15)',
-        'border-accent': 'rgba(99, 102, 241, 0.4)',
+        'border-accent': 'rgba(250, 204, 21, 0.4)',
         
         // Special
         'glass': 'rgba(255, 255, 255, 0.03)',
@@ -75,9 +75,9 @@ export default {
         '2xl': '1.25rem',
       },
       boxShadow: {
-        'glow-sm': '0 0 20px -5px rgba(99, 102, 241, 0.15)',
-        'glow': '0 0 40px -10px rgba(99, 102, 241, 0.2)',
-        'glow-lg': '0 0 60px -15px rgba(99, 102, 241, 0.25)',
+        'glow-sm': '0 0 20px -5px rgba(250, 204, 21, 0.15)',
+        'glow': '0 0 40px -10px rgba(250, 204, 21, 0.2)',
+        'glow-lg': '0 0 60px -15px rgba(250, 204, 21, 0.25)',
         'inner-glow': 'inset 0 1px 0 0 rgba(255, 255, 255, 0.05)',
         'card': '0 1px 3px 0 rgba(0, 0, 0, 0.3), 0 1px 2px -1px rgba(0, 0, 0, 0.3)',
         'card-hover': '0 4px 6px -1px rgba(0, 0, 0, 0.4), 0 2px 4px -2px rgba(0, 0, 0, 0.4)',

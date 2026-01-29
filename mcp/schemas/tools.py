@@ -197,3 +197,27 @@ class PrepareBreachNoticeOutput(VersionedSchema):
     status: str = Field(default="draft", description="Status: draft or pending_approval")
     created_at: datetime = Field(default_factory=lambda: datetime.now(tz=None))
     version: str = "v1"
+
+
+class WebSearchResultItem(BaseModel):
+    """Single web search result."""
+
+    title: str = Field(..., description="Page title")
+    url: str = Field(..., description="Page URL")
+    snippet: str = Field(default="", description="Short excerpt")
+
+
+class WebSearchInput(VersionedSchema):
+    """Input schema for web_search tool."""
+
+    query: str = Field(..., min_length=1, max_length=500, description="Search query")
+    max_results: int = Field(default=5, ge=1, le=20, description="Max results to return")
+    version: str = "v1"
+
+
+class WebSearchOutput(VersionedSchema):
+    """Output schema for web_search tool."""
+
+    query: str
+    results: List[WebSearchResultItem] = Field(default_factory=list)
+    version: str = "v1"

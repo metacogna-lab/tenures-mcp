@@ -8,12 +8,14 @@ from mcp.schemas.tools import (
     CalculateBreachInput,
     ExtractExpiryInput,
     OCRDocumentInput,
+    WebSearchInput,
 )
 from mcp.tools.implementations import (
     analyze_open_home_feedback,
     calculate_breach_status,
     extract_expiry_date,
     ocr_document,
+    web_search,
 )
 
 
@@ -73,3 +75,42 @@ async def test_extract_expiry_date(context):
         assert date.field_name in ["expiry_date", "valid_until", "end_date"]
         assert date.confidence >= 0.0
         assert date.confidence <= 1.0
+
+
+@pytest.mark.asyncio
+async def test_web_search_no_api_key(context):
+    """Test web_search when TAVILY_API_KEY is not set returns empty results."""
+    input_data = WebSearchInput(query="test query", max_results=3)
+    output = await web_search(input_data, context)
+    assert output.query == "test query"
+    assert output.results == []
+
+
+@pytest.mark.asyncio
+async def test_web_search_mocked_httpx(context, monkeypatch):
+    """Test web_search with mocked Tavily API response."""
+    from unittest.mock import MagicMock
+
+    async def mock_post(*args, **kwargs):
+        mock_resp = MagicMock()
+        mock_resp.raise_for_status = lambda: None
+        mock_resp.json.return_value = {
+            "results": [
+                {"title": "Example", "url": "https://example.com", "content": "Snippet text"},
+            ],
+        }
+        return mock_resp
+
+    import mcp.config
+    monkeypatch.setattr(mcp.config.settings, "tavily_api_key", "fake-key")
+    monkeypatch.setattr(mcp.config.settings, "web_search_max_results", 5)
+    import httpx
+    monkeypatch.setattr(httpx.AsyncClient, "post", mock_post)
+
+    input_data = WebSearchInput(query="test", max_results=2)
+    output = await web_search(input_data, context)
+    assert output.query == "test"
+    assert len(output.results) == 1
+    assert output.results[0].title == "Example"
+    assert output.results[0].url == "https://example.com"
+    assert output.results[0].snippet == "Snippet text"

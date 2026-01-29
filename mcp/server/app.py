@@ -16,6 +16,7 @@ from mcp.resources.implementations import (
     get_property_documents_resource,
     get_property_feedback_resource,
 )
+from mcp.schemas.agent import AgentQueryInput
 from mcp.schemas.base import (
     RequestContext,
     ToolExecutionRequest,
@@ -26,6 +27,7 @@ from mcp.server.middleware import (
     observability_middleware,
     request_id_middleware,
 )
+from mcp.langgraphs.agent import execute_query_agent
 from mcp.storage import get_db
 from mcp.tools import get_tool_registry, register_tool
 from mcp.tools.implementations import (
@@ -35,6 +37,7 @@ from mcp.tools.implementations import (
     generate_vendor_report,
     ocr_document,
     prepare_breach_notice,
+    web_search,
 )
 
 
@@ -49,6 +52,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     register_tool("extract_expiry_date", extract_expiry_date)
     register_tool("generate_vendor_report", generate_vendor_report)
     register_tool("prepare_breach_notice", prepare_breach_notice)  # Tier C - HITL required
+    register_tool("web_search", web_search)  # Read-only; use when query needs current/external info
 
     # Register resources
     register_resource(
@@ -238,6 +242,7 @@ def create_app() -> FastAPI:
                 GenerateVendorReportInput,
                 OCRDocumentInput,
                 PrepareBreachNoticeInput,
+                WebSearchInput,
             )
 
             input_schema_map = {
@@ -247,6 +252,7 @@ def create_app() -> FastAPI:
                 "extract_expiry_date": ExtractExpiryInput,
                 "generate_vendor_report": GenerateVendorReportInput,
                 "prepare_breach_notice": PrepareBreachNoticeInput,
+                "web_search": WebSearchInput,
             }
 
             schema_class = input_schema_map.get(tool_name)
@@ -419,6 +425,42 @@ def create_app() -> FastAPI:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail=f"Workflow execution failed: {str(e)}",
+            )
+
+    # Query agent endpoint (variable input, LLM + tools including web search)
+    @app.post(f"/{settings.mcp_api_version}/agent/query")
+    async def agent_query(
+        body: AgentQueryInput,
+        user_id: str = Header(..., alias="X-User-ID"),
+        tenant_id: str = Header(..., alias="X-Tenant-ID"),
+        auth_context: str = Header(..., alias="X-Auth-Context"),
+        role: str = Header(default="agent", alias="X-Role"),
+    ):
+        """Run the query agent: natural language query, returns answer and tool calls used."""
+        context = RequestContext(
+            user_id=user_id,
+            tenant_id=tenant_id,
+            auth_context=auth_context,
+            role=role,
+        )
+        policy_gateway = get_policy_gateway()
+        context_valid, context_error = policy_gateway.check_request_context(context)
+        if not context_valid:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=context_error,
+            )
+        try:
+            result = await execute_query_agent(
+                query=body.query,
+                context=context,
+                max_steps=body.max_steps,
+            )
+            return result
+        except Exception as e:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Agent query failed: {str(e)}",
             )
 
     # Resource retrieval endpoint

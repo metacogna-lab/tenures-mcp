@@ -88,13 +88,58 @@ def run_tool(tool_name: str, input: str, user_id: str, tenant_id: str, role: str
 
 
 @cli.command()
-@click.argument("graph_name")
-@click.option("--input", "-i", type=click.Path(exists=True), help="Input JSON file")
-def run_graph(graph_name: str, input: str):
-    """Run a LangGraph workflow (placeholder for Phase 2)."""
-    click.echo(f"LangGraph workflows not yet implemented. Graph: {graph_name}")
-    click.echo("This will be available in Phase 2 (Tier B agents)")
-    sys.exit(1)
+@click.argument("graph_name", type=click.Choice(["weekly_vendor_report", "arrears_detection", "compliance_audit"]))
+@click.option("--input", "-i", type=click.Path(exists=True), help="Input JSON file (property_id or tenancy_id)")
+@click.option("--user-id", default="cli_user", help="User ID")
+@click.option("--tenant-id", default="cli_tenant", help="Tenant ID")
+@click.option("--role", default="agent", type=click.Choice(["agent", "admin"]), help="User role")
+def run_graph(graph_name: str, input: str, user_id: str, tenant_id: str, role: str):
+    """Run a LangGraph workflow (weekly_vendor_report, arrears_detection, compliance_audit)."""
+    if input:
+        with open(input) as f:
+            body = json.load(f)
+    else:
+        body = json.load(sys.stdin)
+
+    context = RequestContext(
+        user_id=user_id,
+        tenant_id=tenant_id,
+        auth_context=f"cli_{user_id}",
+        role=role,
+    )
+
+    async def execute():
+        try:
+            from mcp.langgraphs.executor import get_workflow_executor
+
+            executor = get_workflow_executor()
+            if graph_name == "weekly_vendor_report":
+                property_id = body.get("property_id")
+                if not property_id:
+                    click.echo("Error: Missing property_id in input", err=True)
+                    sys.exit(1)
+                result = await executor.execute_weekly_vendor_report(property_id, context)
+            elif graph_name == "arrears_detection":
+                tenancy_id = body.get("tenancy_id")
+                if not tenancy_id:
+                    click.echo("Error: Missing tenancy_id in input", err=True)
+                    sys.exit(1)
+                result = await executor.execute_arrears_detection(tenancy_id, context)
+            elif graph_name == "compliance_audit":
+                property_id = body.get("property_id")
+                if not property_id:
+                    click.echo("Error: Missing property_id in input", err=True)
+                    sys.exit(1)
+                result = await executor.execute_compliance_audit(property_id, context)
+            else:
+                click.echo(f"Error: Unknown workflow '{graph_name}'", err=True)
+                sys.exit(1)
+            click.echo(json.dumps(result, indent=2, default=str))
+        except Exception as e:
+            click.echo(f"Error: {str(e)}", err=True)
+            sys.exit(1)
+
+    asyncio.run(execute())
 
 
 @cli.command()
