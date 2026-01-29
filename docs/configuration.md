@@ -246,3 +246,132 @@ curl -X POST http://localhost:8000/v1/tools/analyze_open_home_feedback \
     "input_data": {"property_id": "prop_001"}
   }'
 ```
+
+---
+
+## Docker Deployment
+
+The MCP server can be deployed as a Docker container for local development or production environments.
+
+### Quick Start with Docker Compose
+
+```bash
+# Build and start the container
+docker-compose up --build
+
+# Run in detached mode
+docker-compose up -d --build
+
+# View logs
+docker-compose logs -f mcp-server
+
+# Stop the container
+docker-compose down
+```
+
+### Manual Docker Build
+
+```bash
+# Build the image
+docker build -t tenure-mcp-server .
+
+# Run the container
+docker run -d \
+  --name mcp-server \
+  -p 8000:8000 \
+  -v $(pwd)/data:/app/data \
+  --env-file .env.docker \
+  tenure-mcp-server
+
+# Check health
+curl http://localhost:8000/healthz
+```
+
+### Docker Configuration
+
+The `.env.docker` file contains Docker-specific configuration:
+
+| Variable | Docker Default | Description |
+|----------|----------------|-------------|
+| `DATABASE_PATH` | `/app/data/tenure_mcp.db` | SQLite path inside container |
+| `BEARER_TOKEN` | `docker-dev-token-change-me` | **Change in production!** |
+| `HITL_TOKEN_SECRET` | `docker-hitl-secret-change-me` | **Change in production!** |
+
+**Important:** Update `BEARER_TOKEN` and `HITL_TOKEN_SECRET` before deploying to production.
+
+---
+
+## MCP SSE Transport
+
+The server exposes an SSE (Server-Sent Events) endpoint for LLM agent integration using the Model Context Protocol.
+
+### Endpoints
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/sse/sse` | GET | SSE connection endpoint for MCP clients |
+| `/sse/messages/` | POST | Message handling for SSE transport |
+
+### Available Tools via SSE
+
+All Tier A and B tools are exposed via SSE:
+- `analyze_open_home_feedback` - Sentiment analysis of property feedback
+- `calculate_breach_status` - Tenancy breach risk calculation
+- `ocr_document` - Document text extraction
+- `extract_expiry_date` - Date extraction from text
+- `generate_vendor_report` - Weekly vendor report generation
+- `web_search` - Web search via Tavily API
+
+### Connecting MCP Clients
+
+#### Claude Desktop / MCP Client
+
+Add to your MCP client configuration:
+
+```json
+{
+  "mcpServers": {
+    "tenure": {
+      "url": "http://localhost:8000/sse/sse",
+      "transport": "sse"
+    }
+  }
+}
+```
+
+#### LangChain MCP Adapter
+
+```python
+from langchain_mcp_adapters import MCPToolkit
+
+toolkit = MCPToolkit(
+    sse_url="http://localhost:8000/sse/sse",
+    messages_url="http://localhost:8000/sse/messages/"
+)
+
+# Get tools
+tools = toolkit.get_tools()
+```
+
+#### Testing SSE Connection
+
+```bash
+# Test SSE endpoint is accessible
+curl -N http://localhost:8000/sse/sse
+
+# List available tools (requires MCP client)
+# The SSE endpoint follows the MCP protocol specification
+```
+
+---
+
+## Transport Protocols
+
+The MCP server supports two transport protocols:
+
+| Protocol | Endpoint | Use Case |
+|----------|----------|----------|
+| **REST API** | `/v1/tools/*`, `/v1/workflows/*` | Direct HTTP integration, CLI, frontend apps |
+| **MCP SSE** | `/sse/*` | LLM agent integration (Claude, LangChain, etc.) |
+
+Both protocols provide access to the same tools and resources, with REST offering more flexibility for custom integrations and SSE providing standard MCP protocol compatibility for AI agents.

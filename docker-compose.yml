@@ -1,0 +1,29 @@
+services:
+  mcp-server:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: tenure-mcp-server
+    ports:
+      - "8000:8000"
+    env_file:
+      - .env.docker
+    environment:
+      # Override for container environment
+      - DATABASE_PATH=/app/data/tenure_mcp.db
+      - MCP_SERVER_HOST=0.0.0.0
+      - MCP_SERVER_PORT=8000
+    volumes:
+      # Persist SQLite database
+      - mcp-data:/app/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/healthz"]
+      interval: 30s
+      timeout: 10s
+      start_period: 10s
+      retries: 3
+    restart: unless-stopped
+
+volumes:
+  mcp-data:
+    driver: local

@@ -1,0 +1,2 @@
+### Instructions for each phase of work:
+Create a git checkout -b feature/{ }, write unit tests for each piece of functionality. Perform the work required, run test until pass and then commit with a detailed message, merge to main, push to remote.

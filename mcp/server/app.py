@@ -27,6 +27,7 @@ from mcp.server.middleware import (
     observability_middleware,
     request_id_middleware,
 )
+from mcp.server.sse import sse_app
 from mcp.langgraphs.agent import execute_query_agent
 from mcp.storage import get_db
 from mcp.tools import get_tool_registry, register_tool
@@ -127,6 +128,9 @@ def create_app() -> FastAPI:
         allow_methods=["*"],
         allow_headers=["*"],
     )
+
+    # Mount MCP SSE transport at /sse for LLM agent integration
+    app.mount("/sse", sse_app)
 
     # Health check (liveness probe)
     @app.get("/healthz")

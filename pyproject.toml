@@ -23,6 +23,7 @@ dependencies = [
     "httpx>=0.25.0",
     "langfuse>=3.12.1",
     "openai>=1.0.0",
+    "mcp>=1.0.0",  # Official MCP Python SDK for SSE transport
 ]
 
 [project.optional-dependencies]
