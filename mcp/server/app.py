@@ -40,13 +40,25 @@ from mcp.tools.implementations import (
     prepare_breach_notice,
     web_search,
 )
+from mcp.tools.integration_tools import (
+    fetch_property_emails,
+    search_communication_threads,
+    list_property_documents,
+    get_document_content,
+    check_document_expiry,
+    list_active_properties,
+    get_property_contacts,
+    get_upcoming_open_homes,
+    list_arrears_tenancies,
+    get_tenant_communication_history,
+)
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     """Lifespan context manager for startup/shutdown."""
     # Startup: Register tools and resources
-    # Register tools
+    # Register existing tools
     register_tool("analyze_open_home_feedback", analyze_open_home_feedback)
     register_tool("calculate_breach_status", calculate_breach_status)
     register_tool("ocr_document", ocr_document)
@@ -54,6 +66,24 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     register_tool("generate_vendor_report", generate_vendor_report)
     register_tool("prepare_breach_notice", prepare_breach_notice)  # Tier C - HITL required
     register_tool("web_search", web_search)  # Read-only; use when query needs current/external info
+
+    # Register Gmail integration tools
+    register_tool("fetch_property_emails", fetch_property_emails)
+    register_tool("search_communication_threads", search_communication_threads)
+
+    # Register Google Drive integration tools
+    register_tool("list_property_documents", list_property_documents)
+    register_tool("get_document_content", get_document_content)
+    register_tool("check_document_expiry", check_document_expiry)
+
+    # Register VaultRE integration tools
+    register_tool("list_active_properties", list_active_properties)
+    register_tool("get_property_contacts", get_property_contacts)
+    register_tool("get_upcoming_open_homes", get_upcoming_open_homes)
+
+    # Register Ailo integration tools
+    register_tool("list_arrears_tenancies", list_arrears_tenancies)
+    register_tool("get_tenant_communication_history", get_tenant_communication_history)
 
     # Register resources
     register_resource(
@@ -96,6 +126,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     register_workflow("weekly_vendor_report", executor.execute_weekly_vendor_report)
     register_workflow("arrears_detection", executor.execute_arrears_detection)
     register_workflow("compliance_audit", executor.execute_compliance_audit)
+    register_workflow("unified_collection", executor.execute_unified_collection)
 
     yield
 
@@ -248,8 +279,21 @@ def create_app() -> FastAPI:
                 PrepareBreachNoticeInput,
                 WebSearchInput,
             )
+            from mcp.schemas.integrations import (
+                FetchPropertyEmailsInput,
+                SearchCommunicationThreadsInput,
+                ListPropertyDocumentsInput,
+                GetDocumentContentInput,
+                CheckDocumentExpiryInput,
+                ListActivePropertiesInput,
+                GetPropertyContactsInput,
+                GetUpcomingOpenHomesInput,
+                ListArrearsTenanciesInput,
+                GetTenantCommunicationHistoryInput,
+            )
 
             input_schema_map = {
+                # Existing tools
                 "analyze_open_home_feedback": AnalyzeFeedbackInput,
                 "calculate_breach_status": CalculateBreachInput,
                 "ocr_document": OCRDocumentInput,
@@ -257,6 +301,20 @@ def create_app() -> FastAPI:
                 "generate_vendor_report": GenerateVendorReportInput,
                 "prepare_breach_notice": PrepareBreachNoticeInput,
                 "web_search": WebSearchInput,
+                # Gmail integration tools
+                "fetch_property_emails": FetchPropertyEmailsInput,
+                "search_communication_threads": SearchCommunicationThreadsInput,
+                # Google Drive integration tools
+                "list_property_documents": ListPropertyDocumentsInput,
+                "get_document_content": GetDocumentContentInput,
+                "check_document_expiry": CheckDocumentExpiryInput,
+                # VaultRE integration tools
+                "list_active_properties": ListActivePropertiesInput,
+                "get_property_contacts": GetPropertyContactsInput,
+                "get_upcoming_open_homes": GetUpcomingOpenHomesInput,
+                # Ailo integration tools
+                "list_arrears_tenancies": ListArrearsTenanciesInput,
+                "get_tenant_communication_history": GetTenantCommunicationHistoryInput,
             }
 
             schema_class = input_schema_map.get(tool_name)
@@ -414,6 +472,18 @@ def create_app() -> FastAPI:
                         detail="Missing property_id",
                     )
                 result = await executor.execute_compliance_audit(property_id, context)
+
+            elif workflow_name == "unified_collection":
+                property_id = body.get("property_id")
+                if not property_id:
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail="Missing property_id",
+                    )
+                collection_scope = body.get("collection_scope")  # Optional
+                result = await executor.execute_unified_collection(
+                    property_id, context, collection_scope
+                )
 
             else:
                 raise HTTPException(

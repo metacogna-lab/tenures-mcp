@@ -31,6 +31,8 @@ class Settings(BaseSettings):
     # Mock Integrations
     vaultre_mock_enabled: bool = True
     ailo_mock_enabled: bool = True
+    gmail_mock_enabled: bool = True
+    google_drive_mock_enabled: bool = True
     mock_latency_ms: int = 500
 
     # HITL

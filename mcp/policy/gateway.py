@@ -12,6 +12,7 @@ class PolicyGateway:
 
     # RBAC matrix: tool_name -> required_role
     RBAC_MATRIX: Dict[str, str] = {
+        # Existing tools
         "get_property_details": "agent",
         "analyze_open_home_feedback": "agent",
         "check_ledger_arrears": "agent",
@@ -19,7 +20,22 @@ class PolicyGateway:
         "ocr_document": "agent",
         "extract_expiry_date": "agent",
         "generate_vendor_report": "agent",
-        # High-risk tools require admin
+        "web_search": "agent",
+        # Gmail integration tools (Tier A - Read Only)
+        "fetch_property_emails": "agent",
+        "search_communication_threads": "agent",
+        # Google Drive integration tools (Tier A - Read Only)
+        "list_property_documents": "agent",
+        "get_document_content": "agent",
+        "check_document_expiry": "agent",
+        # VaultRE integration tools (Tier A - Read Only)
+        "list_active_properties": "agent",
+        "get_property_contacts": "agent",
+        "get_upcoming_open_homes": "agent",
+        # Ailo integration tools (Tier A - Read Only)
+        "list_arrears_tenancies": "agent",
+        "get_tenant_communication_history": "agent",
+        # High-risk tools require admin (Tier C)
         "prepare_breach_notice": "admin",
         "archive_listing": "admin",
     }
