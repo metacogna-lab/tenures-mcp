@@ -3,7 +3,7 @@
 import pytest
 from pydantic import ValidationError
 
-from mcp.schemas.tools import (
+from tenure_mcp.schemas.tools import (
     AnalyzeFeedbackInput,
     CalculateBreachInput,
     ExtractExpiryInput,

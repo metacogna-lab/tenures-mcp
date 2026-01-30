@@ -2,8 +2,8 @@
 
 import pytest
 
-from mcp.schemas.base import RequestContext
-from mcp.langgraphs.executor import get_workflow_executor
+from tenure_mcp.schemas.base import RequestContext
+from tenure_mcp.langgraphs.executor import get_workflow_executor
 
 
 @pytest.fixture

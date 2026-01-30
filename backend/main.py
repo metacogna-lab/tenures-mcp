@@ -2,8 +2,8 @@
 
 import uvicorn
 
-from mcp.config import settings
-from mcp.server import create_app
+from tenure_mcp.config import settings
+from tenure_mcp.server import create_app
 
 app = create_app()
 

@@ -2,8 +2,8 @@
 
 import pytest
 
-from mcp.schemas.base import RequestContext
-from mcp.schemas.integrations import (
+from tenure_mcp.schemas.base import RequestContext
+from tenure_mcp.schemas.integrations import (
     CheckDocumentExpiryInput,
     FetchPropertyEmailsInput,
     GetDocumentContentInput,
@@ -15,7 +15,7 @@ from mcp.schemas.integrations import (
     ListPropertyDocumentsInput,
     SearchCommunicationThreadsInput,
 )
-from mcp.tools.integration_tools import (
+from tenure_mcp.tools.integration_tools import (
     check_document_expiry,
     fetch_property_emails,
     get_document_content,

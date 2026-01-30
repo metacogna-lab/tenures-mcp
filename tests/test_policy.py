@@ -1,7 +1,7 @@
 """Tests for policy gateway."""
 
-from mcp.policy import get_policy_gateway
-from mcp.schemas.base import RequestContext
+from tenure_mcp.policy import get_policy_gateway
+from tenure_mcp.schemas.base import RequestContext
 
 
 def test_policy_check_valid_agent():

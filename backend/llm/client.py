@@ -3,7 +3,7 @@
 import os
 from typing import Any
 
-from mcp.config import settings
+from tenure_mcp.config import settings
 
 # Configure Langfuse environment before importing the wrapped client.
 # Langfuse reads these env vars on import.

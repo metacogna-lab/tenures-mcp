@@ -2,12 +2,12 @@
 
 import pytest
 
-from mcp.schemas.base import RequestContext
-from mcp.schemas.tools import (
+from tenure_mcp.schemas.base import RequestContext
+from tenure_mcp.schemas.tools import (
     PrepareBreachNoticeInput,
     PrepareBreachNoticeOutput,
 )
-from mcp.tools.implementations import prepare_breach_notice
+from tenure_mcp.tools.implementations import prepare_breach_notice
 
 
 @pytest.fixture

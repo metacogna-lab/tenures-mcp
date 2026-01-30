@@ -1,0 +1,169 @@
+"""CLI entrypoint for MCP Server tools and workflows."""
+
+import asyncio
+import json
+import sys
+
+import click
+
+from tenure_mcp.config import settings
+from tenure_mcp.schemas.base import RequestContext
+from tenure_mcp.tools import get_tool_registry
+
+
+@click.group()
+def cli():
+    """Tenure MCP Server CLI."""
+    pass
+
+
+@cli.command()
+@click.argument("tool_name")
+@click.option("--input", "-i", type=click.Path(exists=True), help="Input JSON file")
+@click.option("--user-id", default="cli_user", help="User ID")
+@click.option("--tenant-id", default="cli_tenant", help="Tenant ID")
+@click.option("--role", default="agent", type=click.Choice(["agent", "admin"]), help="User role")
+def run_tool(tool_name: str, input: str, user_id: str, tenant_id: str, role: str):
+    """Run a tool with input from file or stdin."""
+    # Load input data
+    if input:
+        with open(input) as f:
+            input_data = json.load(f)
+    else:
+        # Read from stdin
+        input_data = json.load(sys.stdin)
+
+    # Create request context
+    context = RequestContext(
+        user_id=user_id,
+        tenant_id=tenant_id,
+        auth_context=f"cli_{user_id}",
+        role=role,
+    )
+
+    # Get tool
+    registry = get_tool_registry()
+    tool_func = registry.get(tool_name)
+    if not tool_func:
+        click.echo(f"Error: Tool '{tool_name}' not found", err=True)
+        sys.exit(1)
+
+    # Execute tool
+    async def execute():
+        try:
+            # Parse input based on tool (simplified - would use schema registry in production)
+            from tenure_mcp.schemas.tools import (
+                AnalyzeFeedbackInput,
+                CalculateBreachInput,
+                ExtractExpiryInput,
+                GenerateVendorReportInput,
+                OCRDocumentInput,
+            )
+
+            schema_map = {
+                "analyze_open_home_feedback": AnalyzeFeedbackInput,
+                "calculate_breach_status": CalculateBreachInput,
+                "ocr_document": OCRDocumentInput,
+                "extract_expiry_date": ExtractExpiryInput,
+                "generate_vendor_report": GenerateVendorReportInput,
+            }
+
+            schema_class = schema_map.get(tool_name)
+            if not schema_class:
+                click.echo(f"Error: Unknown tool schema for '{tool_name}'", err=True)
+                sys.exit(1)
+
+            tool_input = schema_class(**input_data)
+            output = await tool_func(tool_input, context)
+
+            # Output result
+            output_dict = output.model_dump() if hasattr(output, "model_dump") else dict(output)
+            click.echo(json.dumps(output_dict, indent=2, default=str))
+
+        except Exception as e:
+            click.echo(f"Error: {str(e)}", err=True)
+            sys.exit(1)
+
+    asyncio.run(execute())
+
+
+@cli.command()
+@click.argument("graph_name", type=click.Choice(["weekly_vendor_report", "arrears_detection", "compliance_audit"]))
+@click.option("--input", "-i", type=click.Path(exists=True), help="Input JSON file (property_id or tenancy_id)")
+@click.option("--user-id", default="cli_user", help="User ID")
+@click.option("--tenant-id", default="cli_tenant", help="Tenant ID")
+@click.option("--role", default="agent", type=click.Choice(["agent", "admin"]), help="User role")
+def run_graph(graph_name: str, input: str, user_id: str, tenant_id: str, role: str):
+    """Run a LangGraph workflow (weekly_vendor_report, arrears_detection, compliance_audit)."""
+    if input:
+        with open(input) as f:
+            body = json.load(f)
+    else:
+        body = json.load(sys.stdin)
+
+    context = RequestContext(
+        user_id=user_id,
+        tenant_id=tenant_id,
+        auth_context=f"cli_{user_id}",
+        role=role,
+    )
+
+    async def execute():
+        try:
+            from tenure_mcp.langgraphs.executor import get_workflow_executor
+
+            executor = get_workflow_executor()
+            if graph_name == "weekly_vendor_report":
+                property_id = body.get("property_id")
+                if not property_id:
+                    click.echo("Error: Missing property_id in input", err=True)
+                    sys.exit(1)
+                result = await executor.execute_weekly_vendor_report(property_id, context)
+            elif graph_name == "arrears_detection":
+                tenancy_id = body.get("tenancy_id")
+                if not tenancy_id:
+                    click.echo("Error: Missing tenancy_id in input", err=True)
+                    sys.exit(1)
+                result = await executor.execute_arrears_detection(tenancy_id, context)
+            elif graph_name == "compliance_audit":
+                property_id = body.get("property_id")
+                if not property_id:
+                    click.echo("Error: Missing property_id in input", err=True)
+                    sys.exit(1)
+                result = await executor.execute_compliance_audit(property_id, context)
+            else:
+                click.echo(f"Error: Unknown workflow '{graph_name}'", err=True)
+                sys.exit(1)
+            click.echo(json.dumps(result, indent=2, default=str))
+        except Exception as e:
+            click.echo(f"Error: {str(e)}", err=True)
+            sys.exit(1)
+
+    asyncio.run(execute())
+
+
+@cli.command()
+def list_tools():
+    """List all available tools."""
+    registry = get_tool_registry()
+    tools = registry.list_tools()
+    click.echo("Available tools:")
+    for tool in tools:
+        click.echo(f"  - {tool}")
+
+
+@cli.command()
+@click.option("--tool", help="Tool name to generate token for")
+def generate_token(tool: str):
+    """Generate HITL token for a tool (MVP stub)."""
+    if not tool:
+        click.echo("Error: --tool is required", err=True)
+        sys.exit(1)
+
+    # In MVP, just return the secret (in production, would sign/encrypt)
+    click.echo(f"HITL token for '{tool}': {settings.hitl_token_secret}")
+    click.echo("Note: In production, this would be a signed token")
+
+
+if __name__ == "__main__":
+    cli()

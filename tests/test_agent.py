@@ -3,8 +3,8 @@
 import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
 
-from mcp.schemas.base import RequestContext
-from mcp.schemas.agent import AgentQueryInput, AgentQueryOutput
+from tenure_mcp.schemas.base import RequestContext
+from tenure_mcp.schemas.agent import AgentQueryInput, AgentQueryOutput
 
 
 @pytest.fixture

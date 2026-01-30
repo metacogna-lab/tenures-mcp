@@ -5,8 +5,8 @@ import pytest
 from unittest.mock import patch
 from fastapi.testclient import TestClient
 
-from mcp.server.app import create_app
-from mcp.config import Settings
+from tenure_mcp.server.app import create_app
+from tenure_mcp.config import Settings
 
 
 @pytest.fixture
