@@ -30,6 +30,11 @@ from tenure_mcp.server.middleware import (
 from tenure_mcp.server.sse import sse_app
 from tenure_mcp.langgraphs.agent import execute_query_agent
 from tenure_mcp.storage import get_db
+
+# Import FastMCP tools and resources to register them
+from tenure_mcp.tools import fastmcp_tools  # noqa: F401
+from tenure_mcp.resources import fastmcp_resources  # noqa: F401
+from tenure_mcp.server.fastmcp_server import get_fastmcp_server
 from tenure_mcp.tools import get_tool_registry, register_tool
 from tenure_mcp.tools.implementations import (
     analyze_open_home_feedback,
@@ -162,6 +167,15 @@ def create_app() -> FastAPI:
 
     # Mount MCP SSE transport at /sse for LLM agent integration
     app.mount("/sse", sse_app)
+    
+    # Mount FastMCP HTTP app at /mcp
+    # FastMCP server is created when tools/resources modules are imported above
+    from tenure_mcp.server.fastmcp_server import create_fastmcp_server
+    
+    fastmcp = create_fastmcp_server()
+    mcp_app = fastmcp.http_app(path="/")
+    # Mount FastMCP app - it will handle its own routes and lifecycle
+    app.mount("/mcp", mcp_app)
 
     # Health check (liveness probe)
     @app.get("/healthz")
