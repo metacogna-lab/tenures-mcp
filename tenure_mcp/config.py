@@ -22,6 +22,10 @@ class Settings(BaseSettings):
     langsmith_api_key: str = ""
     langsmith_project: str = "tenure-mcp-mvp"
     opentelemetry_enabled: bool = True
+    
+    # OpenTelemetry OTLP
+    otlp_endpoint: str = ""  # e.g., "http://localhost:4317" for gRPC or "http://localhost:4318" for HTTP
+    otlp_headers: dict[str, str] = {}  # Optional headers for OTLP exporter (JSON string in env)
 
     # Langfuse
     langfuse_secret_key: str = ""

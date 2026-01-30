@@ -5,9 +5,66 @@ our existing tool implementations. Tools are registered using FastMCP's
 @mcp.tool() decorator pattern.
 """
 
-from typing import Optional
+import time
+from typing import Any, Callable, Optional, TypeVar
 
+from opentelemetry import trace
+
+from tenure_mcp.observability import get_tracer
 from tenure_mcp.schemas.base import RequestContext
+
+# Get tracer for this module
+tracer = get_tracer(__name__)
+
+T = TypeVar("T")
+
+
+def _trace_tool_execution(tool_name: str, func: Callable[..., T], *args: Any, **kwargs: Any) -> T:
+    """Helper to trace tool execution with OpenTelemetry spans.
+    
+    Args:
+        tool_name: Name of the tool being executed
+        func: Tool function to execute
+        *args: Positional arguments for the function
+        **kwargs: Keyword arguments for the function
+        
+    Returns:
+        Result from tool function execution
+    """
+    with tracer.start_as_current_span(f"tool.{tool_name}") as span:
+        start_time = time.time()
+        
+        try:
+            # Set span attributes
+            span.set_attribute("tool.name", tool_name)
+            if args:
+                # Add first arg as input if it's a string (property_id, tenancy_id, etc.)
+                if isinstance(args[0], str):
+                    span.set_attribute("tool.input.id", args[0])
+            
+            # Execute tool
+            if hasattr(func, "__call__"):
+                result = func(*args, **kwargs)
+            else:
+                # Handle async functions
+                import asyncio
+                if asyncio.iscoroutinefunction(func):
+                    result = asyncio.run(func(*args, **kwargs))
+                else:
+                    result = func(*args, **kwargs)
+            
+            # Calculate duration
+            duration_ms = (time.time() - start_time) * 1000
+            span.set_attribute("tool.duration_ms", duration_ms)
+            span.set_status(trace.Status(trace.StatusCode.OK))
+            
+            return result
+        except Exception as e:
+            duration_ms = (time.time() - start_time) * 1000
+            span.set_attribute("tool.duration_ms", duration_ms)
+            span.set_status(trace.Status(trace.StatusCode.ERROR, str(e)))
+            span.record_exception(e)
+            raise
 from tenure_mcp.schemas.tools import (
     AnalyzeFeedbackInput,
     AnalyzeFeedbackOutput,
@@ -86,11 +143,47 @@ def _get_default_context() -> RequestContext:
     )
 
 
+def _trace_tool_async(tool_name: str):
+    """Decorator helper to add OpenTelemetry tracing to async tool functions.
+    
+    Args:
+        tool_name: Name of the tool for span naming
+    """
+    def decorator(func):
+        # Use functools.wraps to preserve function signature
+        import functools
+        
+        @functools.wraps(func)
+        async def wrapper(*args, **kwargs):
+            with tracer.start_as_current_span(f"tool.{tool_name}") as span:
+                span.set_attribute("tool.name", tool_name)
+                # Add input attributes
+                if args:
+                    if isinstance(args[0], str):
+                        span.set_attribute("tool.input.id", args[0])
+                if kwargs:
+                    for key, value in kwargs.items():
+                        if isinstance(value, (str, int, float, bool)):
+                            span.set_attribute(f"tool.input.{key}", str(value))
+                
+                try:
+                    result = await func(*args, **kwargs)
+                    span.set_status(trace.Status(trace.StatusCode.OK))
+                    return result
+                except Exception as e:
+                    span.set_status(trace.Status(trace.StatusCode.ERROR, str(e)))
+                    span.record_exception(e)
+                    raise
+        return wrapper
+    return decorator
+
+
 # Get FastMCP server instance (create if not exists)
 mcp = create_fastmcp_server()
 
 
 @mcp.tool()
+@_trace_tool_async("analyze_open_home_feedback")
 async def analyze_open_home_feedback(property_id: str) -> AnalyzeFeedbackOutput:
     """Analyze open home feedback for a property.
     
@@ -102,6 +195,7 @@ async def analyze_open_home_feedback(property_id: str) -> AnalyzeFeedbackOutput:
 
 
 @mcp.tool()
+@_trace_tool_async("calculate_breach_status")
 async def calculate_breach_status(tenancy_id: str) -> CalculateBreachOutput:
     """Calculate breach status for a tenancy.
     
@@ -113,6 +207,7 @@ async def calculate_breach_status(tenancy_id: str) -> CalculateBreachOutput:
 
 
 @mcp.tool()
+@_trace_tool_async("ocr_document")
 async def ocr_document(document_url: str) -> OCRDocumentOutput:
     """Extract text from a document using OCR.
     
@@ -124,6 +219,7 @@ async def ocr_document(document_url: str) -> OCRDocumentOutput:
 
 
 @mcp.tool()
+@_trace_tool_async("extract_expiry_date")
 async def extract_expiry_date(text: str) -> ExtractExpiryOutput:
     """Extract expiry dates from text content.
     
@@ -135,6 +231,7 @@ async def extract_expiry_date(text: str) -> ExtractExpiryOutput:
 
 
 @mcp.tool()
+@_trace_tool_async("generate_vendor_report")
 async def generate_vendor_report(property_id: str) -> GenerateVendorReportOutput:
     """Generate a comprehensive vendor report for a property.
     
@@ -146,6 +243,7 @@ async def generate_vendor_report(property_id: str) -> GenerateVendorReportOutput
 
 
 @mcp.tool()
+@_trace_tool_async("prepare_breach_notice")
 async def prepare_breach_notice(tenancy_id: str) -> PrepareBreachNoticeOutput:
     """Prepare a breach notice document for a tenancy.
     
@@ -157,6 +255,7 @@ async def prepare_breach_notice(tenancy_id: str) -> PrepareBreachNoticeOutput:
 
 
 @mcp.tool()
+@_trace_tool_async("web_search")
 async def web_search(query: str, max_results: int = 5) -> WebSearchOutput:
     """Search the web for current information.
     
@@ -173,6 +272,7 @@ async def web_search(query: str, max_results: int = 5) -> WebSearchOutput:
 
 
 @mcp.tool()
+@_trace_tool_async("fetch_property_emails")
 async def fetch_property_emails(property_id: str, days_back: int = 30) -> FetchPropertyEmailsOutput:
     """Fetch emails related to a specific property.
     
@@ -185,6 +285,7 @@ async def fetch_property_emails(property_id: str, days_back: int = 30) -> FetchP
 
 
 @mcp.tool()
+@_trace_tool_async("search_communication_threads")
 async def search_communication_threads(
     query: str, max_results: int = 10, contact_email: Optional[str] = None
 ) -> SearchCommunicationThreadsOutput:
@@ -201,6 +302,7 @@ async def search_communication_threads(
 
 
 @mcp.tool()
+@_trace_tool_async("list_property_documents")
 async def list_property_documents(property_id: str) -> ListPropertyDocumentsOutput:
     """List all documents associated with a property.
     
@@ -213,6 +315,7 @@ async def list_property_documents(property_id: str) -> ListPropertyDocumentsOutp
 
 
 @mcp.tool()
+@_trace_tool_async("get_document_content")
 async def get_document_content(document_id: str) -> GetDocumentContentOutput:
     """Get document metadata and content preview.
     
@@ -225,6 +328,7 @@ async def get_document_content(document_id: str) -> GetDocumentContentOutput:
 
 
 @mcp.tool()
+@_trace_tool_async("check_document_expiry")
 async def check_document_expiry(property_id: str) -> CheckDocumentExpiryOutput:
     """Check expiry dates for all documents associated with a property.
     
@@ -237,6 +341,7 @@ async def check_document_expiry(property_id: str) -> CheckDocumentExpiryOutput:
 
 
 @mcp.tool()
+@_trace_tool_async("list_active_properties")
 async def list_active_properties(
     status: Optional[str] = None, property_class: Optional[str] = None
 ) -> ListActivePropertiesOutput:
@@ -251,6 +356,7 @@ async def list_active_properties(
 
 
 @mcp.tool()
+@_trace_tool_async("get_property_contacts")
 async def get_property_contacts(property_id: str) -> GetPropertyContactsOutput:
     """Get all contacts associated with a property.
     
@@ -263,6 +369,7 @@ async def get_property_contacts(property_id: str) -> GetPropertyContactsOutput:
 
 
 @mcp.tool()
+@_trace_tool_async("get_upcoming_open_homes")
 async def get_upcoming_open_homes(
     property_id: Optional[str] = None, days_ahead: int = 30
 ) -> GetUpcomingOpenHomesOutput:
@@ -277,6 +384,7 @@ async def get_upcoming_open_homes(
 
 
 @mcp.tool()
+@_trace_tool_async("list_arrears_tenancies")
 async def list_arrears_tenancies(
     min_days_overdue: int = 0, status: Optional[str] = None
 ) -> ListArrearsTenanciesOutput:
@@ -291,6 +399,7 @@ async def list_arrears_tenancies(
 
 
 @mcp.tool()
+@_trace_tool_async("get_tenant_communication_history")
 async def get_tenant_communication_history(
     tenancy_id: str, days_back: int = 90
 ) -> GetTenantCommunicationHistoryOutput:

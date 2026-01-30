@@ -3,8 +3,14 @@
 import uuid
 from typing import Any, Dict, List, Optional
 
+from opentelemetry import trace
+
+from tenure_mcp.observability import get_tracer
 from tenure_mcp.schemas.base import RequestContext
 from tenure_mcp.storage import get_db
+
+# Get tracer for workflow execution
+tracer = get_tracer(__name__)
 from tenure_mcp.langgraphs.workflows import (
     WorkflowState,
     build_arrears_detection_flow,
@@ -35,48 +41,59 @@ class WorkflowExecutor:
         """Execute WeeklyVendorReportFlow."""
         correlation_id = str(uuid.uuid4())
 
-        initial_state: WorkflowState = {
-            "property_id": property_id,
-            "tenancy_id": None,
-            "context": context,
-            "step_results": {},
-            "final_output": None,
-            "error": None,
-        }
+        with tracer.start_as_current_span("workflow.weekly_vendor_report") as span:
+            span.set_attribute("workflow.name", "weekly_vendor_report")
+            span.set_attribute("workflow.input.property_id", property_id)
+            span.set_attribute("workflow.correlation_id", correlation_id)
+            span.set_attribute("workflow.user_id", context.user_id)
 
-        try:
-            # Execute workflow
-            result = await self._weekly_vendor_report.ainvoke(initial_state)
-
-            # Log execution
-            self.db.log_audit_event(
-                correlation_id=correlation_id,
-                event_type="workflow_execution",
-                user_id=context.user_id,
-                tenant_id=context.tenant_id,
-                action="weekly_vendor_report",
-                policy_result="completed",
-                details={"property_id": property_id, "result": result.get("final_output")},
-            )
-
-            return {
-                "success": True,
-                "correlation_id": correlation_id,
-                "workflow_name": "weekly_vendor_report",
-                "output": result.get("final_output"),
+            initial_state: WorkflowState = {
+                "property_id": property_id,
+                "tenancy_id": None,
+                "context": context,
+                "step_results": {},
+                "final_output": None,
+                "error": None,
             }
 
-        except Exception as e:
-            self.db.log_audit_event(
-                correlation_id=correlation_id,
-                event_type="workflow_execution",
-                user_id=context.user_id,
-                tenant_id=context.tenant_id,
-                action="weekly_vendor_report",
-                policy_result="failed",
-                details={"error": str(e)},
-            )
-            raise
+            try:
+                # Execute workflow
+                result = await self._weekly_vendor_report.ainvoke(initial_state)
+
+                # Log execution
+                self.db.log_audit_event(
+                    correlation_id=correlation_id,
+                    event_type="workflow_execution",
+                    user_id=context.user_id,
+                    tenant_id=context.tenant_id,
+                    action="weekly_vendor_report",
+                    policy_result="completed",
+                    details={"property_id": property_id, "result": result.get("final_output")},
+                )
+
+                span.set_attribute("workflow.success", True)
+                span.set_status(trace.Status(trace.StatusCode.OK))
+
+                return {
+                    "success": True,
+                    "correlation_id": correlation_id,
+                    "workflow_name": "weekly_vendor_report",
+                    "output": result.get("final_output"),
+                }
+
+            except Exception as e:
+                self.db.log_audit_event(
+                    correlation_id=correlation_id,
+                    event_type="workflow_execution",
+                    user_id=context.user_id,
+                    tenant_id=context.tenant_id,
+                    action="weekly_vendor_report",
+                    policy_result="failed",
+                    details={"error": str(e)},
+                )
+                span.set_status(trace.Status(trace.StatusCode.ERROR, str(e)))
+                span.record_exception(e)
+                raise
 
     async def execute_arrears_detection(
         self, tenancy_id: str, context: RequestContext
@@ -84,46 +101,57 @@ class WorkflowExecutor:
         """Execute ArrearsDetectionFlow."""
         correlation_id = str(uuid.uuid4())
 
-        initial_state: WorkflowState = {
-            "property_id": "",
-            "tenancy_id": tenancy_id,
-            "context": context,
-            "step_results": {},
-            "final_output": None,
-            "error": None,
-        }
+        with tracer.start_as_current_span("workflow.arrears_detection") as span:
+            span.set_attribute("workflow.name", "arrears_detection")
+            span.set_attribute("workflow.input.tenancy_id", tenancy_id)
+            span.set_attribute("workflow.correlation_id", correlation_id)
+            span.set_attribute("workflow.user_id", context.user_id)
 
-        try:
-            result = await self._arrears_detection.ainvoke(initial_state)
-
-            self.db.log_audit_event(
-                correlation_id=correlation_id,
-                event_type="workflow_execution",
-                user_id=context.user_id,
-                tenant_id=context.tenant_id,
-                action="arrears_detection",
-                policy_result="completed",
-                details={"tenancy_id": tenancy_id, "result": result.get("final_output")},
-            )
-
-            return {
-                "success": True,
-                "correlation_id": correlation_id,
-                "workflow_name": "arrears_detection",
-                "output": result.get("final_output"),
+            initial_state: WorkflowState = {
+                "property_id": "",
+                "tenancy_id": tenancy_id,
+                "context": context,
+                "step_results": {},
+                "final_output": None,
+                "error": None,
             }
 
-        except Exception as e:
-            self.db.log_audit_event(
-                correlation_id=correlation_id,
-                event_type="workflow_execution",
-                user_id=context.user_id,
-                tenant_id=context.tenant_id,
-                action="arrears_detection",
-                policy_result="failed",
-                details={"error": str(e)},
-            )
-            raise
+            try:
+                result = await self._arrears_detection.ainvoke(initial_state)
+
+                self.db.log_audit_event(
+                    correlation_id=correlation_id,
+                    event_type="workflow_execution",
+                    user_id=context.user_id,
+                    tenant_id=context.tenant_id,
+                    action="arrears_detection",
+                    policy_result="completed",
+                    details={"tenancy_id": tenancy_id, "result": result.get("final_output")},
+                )
+
+                span.set_attribute("workflow.success", True)
+                span.set_status(trace.Status(trace.StatusCode.OK))
+
+                return {
+                    "success": True,
+                    "correlation_id": correlation_id,
+                    "workflow_name": "arrears_detection",
+                    "output": result.get("final_output"),
+                }
+
+            except Exception as e:
+                self.db.log_audit_event(
+                    correlation_id=correlation_id,
+                    event_type="workflow_execution",
+                    user_id=context.user_id,
+                    tenant_id=context.tenant_id,
+                    action="arrears_detection",
+                    policy_result="failed",
+                    details={"error": str(e)},
+                )
+                span.set_status(trace.Status(trace.StatusCode.ERROR, str(e)))
+                span.record_exception(e)
+                raise
 
     async def execute_compliance_audit(
         self, property_id: str, context: RequestContext
@@ -131,46 +159,57 @@ class WorkflowExecutor:
         """Execute ComplianceAuditFlow."""
         correlation_id = str(uuid.uuid4())
 
-        initial_state: WorkflowState = {
-            "property_id": property_id,
-            "tenancy_id": None,
-            "context": context,
-            "step_results": {},
-            "final_output": None,
-            "error": None,
-        }
+        with tracer.start_as_current_span("workflow.compliance_audit") as span:
+            span.set_attribute("workflow.name", "compliance_audit")
+            span.set_attribute("workflow.input.property_id", property_id)
+            span.set_attribute("workflow.correlation_id", correlation_id)
+            span.set_attribute("workflow.user_id", context.user_id)
 
-        try:
-            result = await self._compliance_audit.ainvoke(initial_state)
-
-            self.db.log_audit_event(
-                correlation_id=correlation_id,
-                event_type="workflow_execution",
-                user_id=context.user_id,
-                tenant_id=context.tenant_id,
-                action="compliance_audit",
-                policy_result="completed",
-                details={"property_id": property_id, "result": result.get("final_output")},
-            )
-
-            return {
-                "success": True,
-                "correlation_id": correlation_id,
-                "workflow_name": "compliance_audit",
-                "output": result.get("final_output"),
+            initial_state: WorkflowState = {
+                "property_id": property_id,
+                "tenancy_id": None,
+                "context": context,
+                "step_results": {},
+                "final_output": None,
+                "error": None,
             }
 
-        except Exception as e:
-            self.db.log_audit_event(
-                correlation_id=correlation_id,
-                event_type="workflow_execution",
-                user_id=context.user_id,
-                tenant_id=context.tenant_id,
-                action="compliance_audit",
-                policy_result="failed",
-                details={"error": str(e)},
-            )
-            raise
+            try:
+                result = await self._compliance_audit.ainvoke(initial_state)
+
+                self.db.log_audit_event(
+                    correlation_id=correlation_id,
+                    event_type="workflow_execution",
+                    user_id=context.user_id,
+                    tenant_id=context.tenant_id,
+                    action="compliance_audit",
+                    policy_result="completed",
+                    details={"property_id": property_id, "result": result.get("final_output")},
+                )
+
+                span.set_attribute("workflow.success", True)
+                span.set_status(trace.Status(trace.StatusCode.OK))
+
+                return {
+                    "success": True,
+                    "correlation_id": correlation_id,
+                    "workflow_name": "compliance_audit",
+                    "output": result.get("final_output"),
+                }
+
+            except Exception as e:
+                self.db.log_audit_event(
+                    correlation_id=correlation_id,
+                    event_type="workflow_execution",
+                    user_id=context.user_id,
+                    tenant_id=context.tenant_id,
+                    action="compliance_audit",
+                    policy_result="failed",
+                    details={"error": str(e)},
+                )
+                span.set_status(trace.Status(trace.StatusCode.ERROR, str(e)))
+                span.record_exception(e)
+                raise
 
     async def execute_unified_collection(
         self,
@@ -185,62 +224,78 @@ class WorkflowExecutor:
         """
         correlation_id = str(uuid.uuid4())
 
-        initial_state: UnifiedCollectionState = {
-            "property_id": property_id,
-            "collection_scope": collection_scope or ["gmail", "drive", "vaultre", "ailo"],
-            "context": context,
-            "gmail_data": None,
-            "drive_data": None,
-            "vaultre_data": None,
-            "ailo_data": None,
-            "unified_output": None,
-            "errors": [],
-            "start_time": 0.0,
-            "execution_time_ms": None,
-        }
+        with tracer.start_as_current_span("workflow.unified_collection") as span:
+            span.set_attribute("workflow.name", "unified_collection")
+            span.set_attribute("workflow.input.property_id", property_id)
+            span.set_attribute("workflow.correlation_id", correlation_id)
+            span.set_attribute("workflow.user_id", context.user_id)
+            if collection_scope:
+                span.set_attribute("workflow.input.collection_scope", ",".join(collection_scope))
 
-        try:
-            result = await self._unified_collection.ainvoke(initial_state)
-
-            self.db.log_audit_event(
-                correlation_id=correlation_id,
-                event_type="workflow_execution",
-                user_id=context.user_id,
-                tenant_id=context.tenant_id,
-                action="unified_collection",
-                policy_result="completed",
-                details={
-                    "property_id": property_id,
-                    "scope": collection_scope,
-                    "errors": result.get("errors", []),
-                },
-            )
-
-            # Serialize output
-            output = None
-            if result.get("unified_output"):
-                output = result["unified_output"].model_dump()
-
-            return {
-                "success": True,
-                "correlation_id": correlation_id,
-                "workflow_name": "unified_collection",
-                "output": output,
-                "errors": result.get("errors", []),
-                "execution_time_ms": result.get("execution_time_ms"),
+            initial_state: UnifiedCollectionState = {
+                "property_id": property_id,
+                "collection_scope": collection_scope or ["gmail", "drive", "vaultre", "ailo"],
+                "context": context,
+                "gmail_data": None,
+                "drive_data": None,
+                "vaultre_data": None,
+                "ailo_data": None,
+                "unified_output": None,
+                "errors": [],
+                "start_time": 0.0,
+                "execution_time_ms": None,
             }
 
-        except Exception as e:
-            self.db.log_audit_event(
-                correlation_id=correlation_id,
-                event_type="workflow_execution",
-                user_id=context.user_id,
-                tenant_id=context.tenant_id,
-                action="unified_collection",
-                policy_result="failed",
-                details={"error": str(e)},
-            )
-            raise
+            try:
+                result = await self._unified_collection.ainvoke(initial_state)
+
+                self.db.log_audit_event(
+                    correlation_id=correlation_id,
+                    event_type="workflow_execution",
+                    user_id=context.user_id,
+                    tenant_id=context.tenant_id,
+                    action="unified_collection",
+                    policy_result="completed",
+                    details={
+                        "property_id": property_id,
+                        "scope": collection_scope,
+                        "errors": result.get("errors", []),
+                    },
+                )
+
+                # Serialize output
+                output = None
+                if result.get("unified_output"):
+                    output = result["unified_output"].model_dump()
+
+                span.set_attribute("workflow.success", True)
+                span.set_attribute("workflow.errors_count", len(result.get("errors", [])))
+                if result.get("execution_time_ms"):
+                    span.set_attribute("workflow.execution_time_ms", result.get("execution_time_ms"))
+                span.set_status(trace.Status(trace.StatusCode.OK))
+
+                return {
+                    "success": True,
+                    "correlation_id": correlation_id,
+                    "workflow_name": "unified_collection",
+                    "output": output,
+                    "errors": result.get("errors", []),
+                    "execution_time_ms": result.get("execution_time_ms"),
+                }
+
+            except Exception as e:
+                self.db.log_audit_event(
+                    correlation_id=correlation_id,
+                    event_type="workflow_execution",
+                    user_id=context.user_id,
+                    tenant_id=context.tenant_id,
+                    action="unified_collection",
+                    policy_result="failed",
+                    details={"error": str(e)},
+                )
+                span.set_status(trace.Status(trace.StatusCode.ERROR, str(e)))
+                span.record_exception(e)
+                raise
 
 
 # Global executor

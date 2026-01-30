@@ -35,6 +35,9 @@ from tenure_mcp.storage import get_db
 from tenure_mcp.tools import fastmcp_tools  # noqa: F401
 from tenure_mcp.resources import fastmcp_resources  # noqa: F401
 from tenure_mcp.server.fastmcp_server import get_fastmcp_server
+
+# Initialize OpenTelemetry tracing
+from tenure_mcp.observability import initialize_tracing, shutdown_tracing
 from tenure_mcp.tools import get_tool_registry, register_tool
 from tenure_mcp.tools.implementations import (
     analyze_open_home_feedback,
@@ -62,6 +65,9 @@ from tenure_mcp.tools.integration_tools import (
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     """Lifespan context manager for startup/shutdown."""
+    # Startup: Initialize OpenTelemetry tracing
+    initialize_tracing()
+    
     # Startup: Register tools and resources
     # Register existing tools
     register_tool("analyze_open_home_feedback", analyze_open_home_feedback)
@@ -136,7 +142,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     yield
 
     # Shutdown: cleanup if needed
-    pass
+    shutdown_tracing()
 
 
 def create_app() -> FastAPI:
